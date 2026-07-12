@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../services/api_service.dart';
 import 'chat_threads_screen.dart';
+import 'match_session_chats_screen.dart';
 import 'public_profile_screen.dart';
 
 class MatchHistoryDetailScreen extends StatefulWidget {
@@ -36,13 +37,29 @@ class _MatchHistoryDetailScreenState extends State<MatchHistoryDetailScreen> {
         children: [
           _summaryCard(session, statusLabel),
           const SizedBox(height: 14),
-          const Text(
-            '매칭 상대',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF111827),
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '매칭 상대',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              if (threads.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => Get.to(
+                    () => MatchSessionChatsScreen(
+                      sessionId: session['session_id']?.toString() ?? '',
+                    ),
+                  ),
+                  icon: const Icon(Icons.forum_outlined, size: 16),
+                  label: const Text('채팅 보기'),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           if (threads.isEmpty)
@@ -264,4 +281,3 @@ class _MatchHistoryDetailScreenState extends State<MatchHistoryDetailScreen> {
 
   String _two(int n) => n.toString().padLeft(2, '0');
 }
-

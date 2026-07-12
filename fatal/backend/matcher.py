@@ -5,6 +5,20 @@ from typing import List
 
 from models import RoommateProfile, profile_to_vector, classify_persona
 
+PERSONA_ALIAS = {
+    "study_focused": "독서실형",
+    "sensitive": "수면민감형",
+    "night_owl": "야행성게이머형",
+    "social": "공동체형",
+    "학습집중형": "독서실형",
+    "섬세감성형": "수면민감형",
+    "FM관리형": "FM군대형",
+}
+
+
+def normalize_persona(key: str) -> str:
+    return PERSONA_ALIAS.get(key, key)
+
 # 기숙사 건물 목록
 DORMITORY_HALLS = ["자유관", "정의관", "진리관", "미래관"]
 
@@ -125,8 +139,8 @@ def prefilter_pool(target, pool, min_persona_compat=0.3):
         if target.room_capacity != p.room_capacity:
             continue
         # 페르소나 호환성 임계값
-        pa = target.persona or classify_persona(target)
-        pb = p.persona or classify_persona(p)
+        pa = normalize_persona(target.persona or classify_persona(target))
+        pb = normalize_persona(p.persona or classify_persona(p))
         compat = PERSONA_COMPATIBILITY.get(pa, {}).get(pb, 0.5)
         if compat < min_persona_compat:
             continue
@@ -245,8 +259,8 @@ def _hard_filters(a: RoommateProfile, b: RoommateProfile) -> list[str]:
 
 
 def _persona_bonus(a: RoommateProfile, b: RoommateProfile) -> float:
-    pa = a.persona or classify_persona(a)
-    pb = b.persona or classify_persona(b)
+    pa = normalize_persona(a.persona or classify_persona(a))
+    pb = normalize_persona(b.persona or classify_persona(b))
     compat = PERSONA_COMPATIBILITY.get(pa, {}).get(pb, 0.5)
     return compat
 
@@ -350,7 +364,7 @@ def _team_rematch_entry(pre_matched_pair: list[RoommateProfile]) -> RoommateProf
         uid=f"team_{a.uid}_{b.uid}",
         user_uid=f"team_{a.user_uid}_{b.user_uid}",
         name=f"{a.name},{b.name}",
-        persona=a.persona or classify_persona(a),
+        persona=normalize_persona(a.persona or classify_persona(a)),
         matching_phase=a.matching_phase,
         hope_halls=list(set(a.hope_halls) & set(b.hope_halls)) or a.hope_halls,
         accepted_hall=a.accepted_hall or b.accepted_hall,

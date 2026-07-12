@@ -1,172 +1,167 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자 대시보드</title>
   <style>
-    :root { --bg:#f3f6fb; --card:#fff; --line:#dbe3ef; --txt:#1f2937; --muted:#64748b; --primary:#1d4ed8; --ok:#059669; }
+    :root { --bg:#f3f6fb; --card:#fff; --line:#dbe3ef; --txt:#1f2937; --muted:#64748b; --primary:#1d4ed8; }
     *{box-sizing:border-box} body{margin:0;background:linear-gradient(160deg,#eef4ff,#f8fbff);font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif;color:var(--txt)}
-    .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
-    .hero{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 10px 24px rgba(15,23,42,.06)}
-    h1{margin:0 0 8px;font-size:28px}.sub{color:var(--muted);margin:0}
-    .grid{display:grid;gap:16px;margin-top:16px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    input,select,textarea,button{border-radius:10px;border:1px solid var(--line);padding:10px 12px;font:inherit}
-    textarea{min-height:80px;width:100%} input,select{background:#fff}
-    button{background:var(--primary);color:#fff;border:none;cursor:pointer}
-    button.secondary{background:#e2e8f0;color:#1e293b}
-    .school{border-top:1px dashed var(--line);padding-top:16px;margin-top:16px}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f0ff;color:#1e40af;font-size:12px;font-weight:700}
-    .status{color:var(--ok);font-weight:700}
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center} input,select,textarea,button{border-radius:10px;border:1px solid var(--line);padding:10px 12px;font:inherit}
+    textarea{min-height:90px;width:100%} button{background:var(--primary);color:#fff;border:none;cursor:pointer} button.secondary{background:#e2e8f0;color:#1e293b}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <section class="hero">
-      <h1>관리자 대시보드</h1>
-      <p class="sub">학교/기숙사/단과대학·학과/모집일정/매칭 상태를 한 화면에서 관리합니다.</p>
-    </section>
+<div class="wrap">
+  <section class="card">
+    <h2>학교 추가</h2>
+    <div class="row">
+      <input id="newSchoolName" placeholder="학교명" />
+      <button id="addSchoolBtn">학교 추가</button>
+    </div>
+  </section>
 
-    <section class="card" style="margin-top:16px;">
-      <h3 style="margin-top:0;">학교 추가</h3>
+  <section class="card">
+    <h2>공지 관리</h2>
+    <div class="row">
+      <button id="globalTab" class="secondary">글로벌</button>
+      <button id="schoolTab" class="secondary">학교별</button>
+      <select id="noticeSchool"></select>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input id="noticeTitle" placeholder="제목" style="flex:1" />
+      <input id="noticeBody" placeholder="내용" style="flex:2" />
+      <label><input type="checkbox" id="noticePinned" /> 상단고정</label>
+      <button id="saveNotice">저장</button>
+    </div>
+    <div id="noticeList" style="margin-top:10px"></div>
+  </section>
+
+  <section id="schoolsBox"></section>
+</div>
+<script>
+let schools = [];
+let noticeMode = 'global';
+let editingNoticeId = null;
+
+const api = {
+  async json(url, opt={}) { const r = await fetch(url, opt); const j = await r.json(); if(!r.ok) throw new Error(j.error||'요청 실패'); return j; },
+  getSchools(){ return this.json('/api/schools'); },
+  createSchool(body){ return this.json('/api/admin/schools',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  updateDorms(id,dorms){ return this.json(`/api/admin/schools/${id}/dorms`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dorms})}); },
+  updateSchedule(id,body){ return this.json(`/api/admin/schools/${id}/schedule`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  toggleMatching(id,is_open){ return this.json(`/api/admin/schools/${id}/matching`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_open})}); },
+  listGlobalNotices(){ return this.json('/api/admin/notices'); },
+  createGlobalNotice(body){ return this.json('/api/admin/notices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  updateGlobalNotice(id,body){ return this.json(`/api/admin/notices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  deleteGlobalNotice(id){ return this.json(`/api/admin/notices/${id}`,{method:'DELETE'}); },
+  listSchoolNotices(id){ return this.json(`/api/admin/schools/${id}/notices`); },
+  createSchoolNotice(id,body){ return this.json(`/api/admin/schools/${id}/notices`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  updateSchoolNotice(id,body){ return this.json(`/api/admin/school-notices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); },
+  deleteSchoolNotice(id){ return this.json(`/api/admin/school-notices/${id}`,{method:'DELETE'}); },
+};
+
+function roomTypesToText(d){
+  const arr=(d.room_types||[]).filter(x=>Number(x.is_enabled||1)===1).map(x=>x.capacity);
+  return arr.join(',')||'2,3,4';
+}
+
+async function renderSchools(){
+  const data = await api.getSchools(); schools = data.schools||[];
+  const box = document.getElementById('schoolsBox'); box.innerHTML='';
+  const schoolSel = document.getElementById('noticeSchool');
+  schoolSel.innerHTML = schools.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  for(const s of schools){
+    const div=document.createElement('section'); div.className='card';
+    div.innerHTML = `
+      <h3>${s.name} (${s.matching_phase})</h3>
       <div class="row">
-        <input id="newSchoolName" placeholder="학교명" />
-        <input id="newRecruitStart" placeholder="모집 시작일 (YYYY-MM-DD)" />
-        <input id="newRecruitEnd" placeholder="모집 마감일 (YYYY-MM-DD)" />
-        <button id="addSchoolBtn">학교 추가</button>
+        <button data-t="toggle" data-id="${s.id}" class="secondary">${s.matching_enabled?'매칭 종료':'매칭 시작'}</button>
       </div>
-    </section>
+      <h4>기숙사/인실</h4>
+      <textarea id="dorms-${s.id}">${(s.dormitories||[]).map(d=>`${d.name},${d.gender},${roomTypesToText(d)}`).join('\n')}</textarea>
+      <button data-t="dorm" data-id="${s.id}">저장</button>
+      <h4>기간</h4>
+      <div class="row">
+        <input id="preS-${s.id}" value="${s.pre_matching_start||''}" placeholder="예비시작" />
+        <input id="preE-${s.id}" value="${s.pre_matching_end||''}" placeholder="예비종료" />
+        <input id="appS-${s.id}" value="${s.roommate_apply_start||''}" placeholder="신청시작" />
+        <input id="appE-${s.id}" value="${s.roommate_apply_end||''}" placeholder="신청종료" />
+        <input id="lifeS-${s.id}" value="${s.room_life_start||''}" placeholder="생활시작" />
+        <input id="lifeE-${s.id}" value="${s.room_life_end||''}" placeholder="생활종료" />
+      </div>
+      <button data-t="schedule" data-id="${s.id}">기간 저장</button>
+    `;
+    box.appendChild(div);
+  }
 
-    <section id="schoolsBox" class="grid"></section>
-  </div>
-
-  <script>
-    const api = {
-      async getSchools() {
-        const r = await fetch('/api/schools');
-        return r.json();
-      },
-      async createSchool(body) {
-        const r = await fetch('/api/admin/schools', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        if (!r.ok) throw new Error((await r.json()).error || '학교 생성 실패');
-      },
-      async updateDorms(id, dorms) {
-        const r = await fetch(`/api/admin/schools/${id}/dorms`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ dorms }) });
-        if (!r.ok) throw new Error((await r.json()).error || '기숙사 저장 실패');
-      },
-      async updateColleges(id, colleges) {
-        const r = await fetch(`/api/admin/schools/${id}/colleges`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ colleges }) });
-        if (!r.ok) throw new Error((await r.json()).error || '단과대/학과 저장 실패');
-      },
-      async updateSchedule(id, body) {
-        const r = await fetch(`/api/admin/schools/${id}/schedule`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        if (!r.ok) throw new Error((await r.json()).error || '일정 저장 실패');
-      },
-      async toggleMatching(id, isOpen) {
-        const r = await fetch(`/api/admin/schools/${id}/matching`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ is_open:isOpen }) });
-        if (!r.ok) throw new Error((await r.json()).error || '매칭 상태 변경 실패');
-      }
-    };
-
-    function parseDormText(text) {
-      return text.split('\n').map(v => v.trim()).filter(Boolean).map(line => {
-        const [name, gender] = line.split(',').map(v => v.trim());
-        return { name, gender };
+  box.querySelectorAll('button').forEach(btn=>btn.onclick=async()=>{
+    const id=btn.dataset.id;
+    const t=btn.dataset.t;
+    if(t==='toggle'){ await api.toggleMatching(id, btn.textContent.includes('시작')); }
+    if(t==='dorm'){
+      const rows=(document.getElementById(`dorms-${id}`).value||'').split('\n').map(v=>v.trim()).filter(Boolean);
+      const dorms=rows.map(line=>{ const parts=line.split(','); const name=(parts[0]||'').trim(); const gender=(parts[1]||'coed').trim(); const types=(parts[2]||'2,3,4'); const caps=(types||'2,3,4').split(',').map(x=>Number(x.trim())).filter(x=>x>=2); return {name:name.trim(),gender:(gender||'coed').trim(),room_types:caps}; });
+      await api.updateDorms(id,dorms);
+    }
+    if(t==='schedule'){
+      await api.updateSchedule(id,{
+        pre_matching_start:document.getElementById(`preS-${id}`).value.trim(),
+        pre_matching_end:document.getElementById(`preE-${id}`).value.trim(),
+        roommate_apply_start:document.getElementById(`appS-${id}`).value.trim(),
+        roommate_apply_end:document.getElementById(`appE-${id}`).value.trim(),
+        room_life_start:document.getElementById(`lifeS-${id}`).value.trim(),
+        room_life_end:document.getElementById(`lifeE-${id}`).value.trim(),
       });
     }
+    await renderSchools();
+    await renderNotices();
+  });
+}
 
-    function parseCollegeText(text) {
-      return text.split('\n').map(v => v.trim()).filter(Boolean).map(line => {
-        const [college, ...deps] = line.split('>').map(v => v.trim());
-        return { name: college, departments: deps.join('>').split(',').map(v => v.trim()).filter(Boolean).map(name => ({ name })) };
-      });
+async function renderNotices(){
+  const listEl=document.getElementById('noticeList');
+  const schoolId=Number(document.getElementById('noticeSchool').value||0);
+  const data = noticeMode==='global' ? await api.listGlobalNotices() : await api.listSchoolNotices(schoolId);
+  const notices = data.notices||[];
+  listEl.innerHTML = notices.map(n=>`<div class="row" style="border-top:1px solid #eee;padding:8px 0"><strong>${n.title}</strong><span>${n.updated_at||''}</span><button data-a="edit" data-id="${n.id}" class="secondary">편집</button><button data-a="del" data-id="${n.id}" class="secondary">삭제</button></div>`).join('')||'공지 없음';
+  listEl.querySelectorAll('button').forEach(btn=>btn.onclick=async()=>{
+    const id=Number(btn.dataset.id);
+    if(btn.dataset.a==='del'){
+      if(noticeMode==='global') await api.deleteGlobalNotice(id); else await api.deleteSchoolNotice(id);
+      await renderNotices(); return;
     }
+    const target=notices.find(x=>x.id===id); if(!target) return;
+    editingNoticeId=id;
+    document.getElementById('noticeTitle').value=target.title||'';
+    document.getElementById('noticeBody').value=target.body||'';
+    document.getElementById('noticePinned').checked=!!target.is_pinned;
+  });
+}
 
-    function dormTextFromList(list) {
-      return (list || []).map(d => `${d.name}, ${d.gender}`).join('\n');
-    }
+document.getElementById('addSchoolBtn').onclick=async()=>{
+  const name=document.getElementById('newSchoolName').value.trim(); if(!name) return;
+  await api.createSchool({name}); document.getElementById('newSchoolName').value=''; await renderSchools();
+};
+document.getElementById('globalTab').onclick=async()=>{ noticeMode='global'; editingNoticeId=null; await renderNotices(); };
+document.getElementById('schoolTab').onclick=async()=>{ noticeMode='school'; editingNoticeId=null; await renderNotices(); };
+document.getElementById('noticeSchool').onchange=()=>renderNotices();
+document.getElementById('saveNotice').onclick=async()=>{
+  const body={title:document.getElementById('noticeTitle').value.trim(), body:document.getElementById('noticeBody').value.trim(), is_pinned:document.getElementById('noticePinned').checked};
+  if(!body.title||!body.body) return;
+  const schoolId=Number(document.getElementById('noticeSchool').value||0);
+  if(noticeMode==='global'){
+    if(editingNoticeId) await api.updateGlobalNotice(editingNoticeId,body); else await api.createGlobalNotice(body);
+  }else{
+    if(editingNoticeId) await api.updateSchoolNotice(editingNoticeId,body); else await api.createSchoolNotice(schoolId,body);
+  }
+  editingNoticeId=null; document.getElementById('noticeTitle').value=''; document.getElementById('noticeBody').value=''; document.getElementById('noticePinned').checked=false;
+  await renderNotices();
+};
 
-    function collegeTextFromList(colleges) {
-      return (colleges || []).map(c => `${c.name} > ${(c.departments || []).map(d => d.name).join(', ')}`).join('\n');
-    }
-
-    async function renderSchools() {
-      const box = document.getElementById('schoolsBox');
-      box.innerHTML = '<section class="card">불러오는 중...</section>';
-      const data = await api.getSchools();
-      const schools = data.schools || [];
-      box.innerHTML = '';
-      schools.forEach(s => {
-        const card = document.createElement('section');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="row" style="justify-content:space-between;">
-            <h3 style="margin:0;">${s.name} <span class="pill">${s.matching_phase}</span></h3>
-            <span class="status">${s.matching_enabled ? '매칭 사용중' : '매칭 중지'}</span>
-          </div>
-          <div class="school">
-            <h4>기숙사 편집</h4>
-            <p class="sub">형식: 관이름, gender(male/female/coed)</p>
-            <textarea id="dorms-${s.id}">${dormTextFromList(s.dormitories)}</textarea>
-            <div class="row"><button data-id="${s.id}" class="saveDorms">기숙사 저장</button></div>
-          </div>
-          <div class="school">
-            <h4>단과대학/학과 편집</h4>
-            <p class="sub">형식: 단과대학 > 학과1, 학과2</p>
-            <textarea id="colleges-${s.id}">${collegeTextFromList(s.colleges)}</textarea>
-            <div class="row"><button data-id="${s.id}" class="saveColleges">단과대/학과 저장</button></div>
-          </div>
-          <div class="school">
-            <h4>모집 일정/매칭 설정</h4>
-            <div class="row">
-              <input id="start-${s.id}" value="${s.recruitment_start || ''}" placeholder="모집 시작일 YYYY-MM-DD" />
-              <input id="end-${s.id}" value="${s.recruitment_end || ''}" placeholder="모집 마감일 YYYY-MM-DD" />
-              <button data-id="${s.id}" class="saveSchedule">일정 저장</button>
-              <button data-id="${s.id}" data-open="${s.matching_enabled ? '0' : '1'}" class="toggle secondary">${s.matching_enabled ? '매칭 종료' : '매칭 시작'}</button>
-            </div>
-          </div>
-        `;
-        box.appendChild(card);
-      });
-
-      document.querySelectorAll('.saveDorms').forEach(btn => btn.onclick = async () => {
-        const id = btn.dataset.id;
-        const raw = document.getElementById(`dorms-${id}`).value;
-        await api.updateDorms(id, parseDormText(raw));
-        await renderSchools();
-      });
-      document.querySelectorAll('.saveColleges').forEach(btn => btn.onclick = async () => {
-        const id = btn.dataset.id;
-        const raw = document.getElementById(`colleges-${id}`).value;
-        await api.updateColleges(id, parseCollegeText(raw));
-        await renderSchools();
-      });
-      document.querySelectorAll('.saveSchedule').forEach(btn => btn.onclick = async () => {
-        const id = btn.dataset.id;
-        const recruitment_start = document.getElementById(`start-${id}`).value.trim();
-        const recruitment_end = document.getElementById(`end-${id}`).value.trim();
-        await api.updateSchedule(id, { recruitment_start, recruitment_end });
-        await renderSchools();
-      });
-      document.querySelectorAll('.toggle').forEach(btn => btn.onclick = async () => {
-        const id = btn.dataset.id;
-        const isOpen = btn.dataset.open === '1';
-        await api.toggleMatching(id, isOpen);
-        await renderSchools();
-      });
-    }
-
-    document.getElementById('addSchoolBtn').onclick = async () => {
-      const name = document.getElementById('newSchoolName').value.trim();
-      const recruitment_start = document.getElementById('newRecruitStart').value.trim();
-      const recruitment_end = document.getElementById('newRecruitEnd').value.trim();
-      await api.createSchool({ name, recruitment_start, recruitment_end });
-      await renderSchools();
-    };
-
-    renderSchools().catch(err => alert(err.message));
-  </script>
+renderSchools().then(renderNotices).catch(e=>alert(e.message));
+</script>
 </body>
 </html>
+

@@ -21,8 +21,8 @@ class ApiService {
         baseUrl: defaultTargetPlatform == TargetPlatform.android
             ? 'http://10.0.2.2:5000/api'
             : 'http://localhost:5000/api',
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 60),
         headers: {'Content-Type': 'application/json'},
       ),
     );
@@ -149,7 +149,8 @@ class ApiService {
 
   // ── Persona ──
   Future<Map<String, dynamic>> getPersona() => get('/persona');
-  Future<Map<String, dynamic>> getSchools() => get('/schools');
+  Future<Map<String, dynamic>> getSchools({bool includeHidden = false}) =>
+      get('/schools', query: includeHidden ? {'include_hidden': '1'} : null);
   Future<List<Map<String, dynamic>>> getNotices({int limit = 50}) async {
     final res = await get('/notices', query: {'limit': limit});
     final raw = res['notices'];
@@ -158,6 +159,7 @@ class ApiService {
     }
     return [];
   }
+
   Future<List<Map<String, dynamic>>> getAdminNotices() async {
     final res = await get('/admin/notices');
     final raw = res['notices'];
@@ -166,6 +168,7 @@ class ApiService {
     }
     return [];
   }
+
   Future<Map<String, dynamic>> createNotice(Map<String, dynamic> body) =>
       post('/admin/notices', data: body);
   Future<Map<String, dynamic>> updateNotice(
@@ -189,8 +192,51 @@ class ApiService {
     bool isOpen,
   ) => patch('/admin/schools/$schoolId/matching', data: {'is_open': isOpen});
   Future<Map<String, dynamic>> getMatchingOptions() => get('/matching/options');
-  Future<Map<String, dynamic>> saveMatchingPreferences(List<String> halls) =>
-      post('/matching/preferences', data: {'selected_halls': halls});
+  Future<Map<String, dynamic>> saveMatchingPreferences(
+    List<int> roomTypeIds, {
+    bool? confirmChange,
+  }) => post(
+    '/matching/preferences',
+    data: {
+      'selected_room_type_ids': roomTypeIds,
+      if (confirmChange != null) 'confirm_change': confirmChange,
+    },
+  );
+  Future<Map<String, dynamic>> getInterestRooms() =>
+      get('/profile/interest-rooms');
+  Future<Map<String, dynamic>> saveInterestRooms(
+    List<int> roomTypeIds, {
+    bool? confirmChange,
+  }) => put(
+    '/profile/interest-rooms',
+    data: {
+      'interest_room_type_ids': roomTypeIds,
+      if (confirmChange != null) 'confirm_change': confirmChange,
+    },
+  );
+  Future<List<Map<String, dynamic>>> getSchoolNotices(int schoolId) async {
+    final res = await get('/admin/schools/$schoolId/notices');
+    final raw = res['notices'];
+    if (raw is List) {
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createSchoolNotice(
+    int schoolId,
+    Map<String, dynamic> body,
+  ) => post('/admin/schools/$schoolId/notices', data: body);
+  Future<Map<String, dynamic>> updateSchoolNotice(
+    int noticeId,
+    Map<String, dynamic> body,
+  ) => put('/admin/school-notices/$noticeId', data: body);
+  Future<Map<String, dynamic>> deleteSchoolNotice(int noticeId) =>
+      delete('/admin/school-notices/$noticeId');
+  Future<Map<String, dynamic>> updateDormRoomTypes(
+    int dormId,
+    List<Map<String, dynamic>> roomTypes,
+  ) => put('/admin/dorms/$dormId/room-types', data: {'room_types': roomTypes});
 
   // ── Legacy Matches (kept for backward compat) ──
   Future<Map<String, dynamic>> getTopMatches() => get('/match/top');
@@ -231,6 +277,9 @@ class ApiService {
     return res['sessions'] ?? [];
   }
 
+  Future<Map<String, dynamic>> deleteSessionHistory(String sessionId) =>
+      delete('/match/session/history/$sessionId');
+
   Future<Map<String, dynamic>> getPublicProfile(String userUid) =>
       get('/profile/public/$userUid');
 
@@ -250,6 +299,133 @@ class ApiService {
 
   /// Get cooldown status (rematch restriction).
   Future<Map<String, dynamic>> getCooldownStatus() => get('/match/cooldown');
+  Future<Map<String, dynamic>> getCurrentLifeRoom() =>
+      get('/life-room/current');
+  Future<Map<String, dynamic>> addLifeRoomTodo(
+    String lifeRoomUid,
+    Map<String, dynamic> body,
+  ) => post('/life-room/$lifeRoomUid/todos', data: body);
+  Future<Map<String, dynamic>> toggleLifeRoomTodo(
+    String lifeRoomUid,
+    String todoUid,
+  ) => post('/life-room/$lifeRoomUid/todos/$todoUid/toggle');
+  Future<Map<String, dynamic>> addLifeRoomEvent(
+    String lifeRoomUid,
+    Map<String, dynamic> body,
+  ) => post('/life-room/$lifeRoomUid/events', data: body);
+  Future<Map<String, dynamic>> updateLifeRoomRule(
+    String lifeRoomUid,
+    String body,
+  ) => post('/life-room/$lifeRoomUid/rules', data: {'body': body});
+  Future<Map<String, dynamic>> updateLifeRoomPresence(
+    String lifeRoomUid,
+    String status,
+  ) => post('/life-room/$lifeRoomUid/presence', data: {'status': status});
+  Future<Map<String, dynamic>> createLifeRoomPost(
+    String lifeRoomUid,
+    Map<String, dynamic> body,
+  ) => post('/life-room/$lifeRoomUid/posts', data: body);
+  Future<Map<String, dynamic>> updateLifeRoomFillPolicy(
+    String lifeRoomUid,
+    String strategy, {
+    String period = 'main',
+  }) => post(
+    '/life-room/$lifeRoomUid/fill-policy',
+    data: {'period': period, 'strategy': strategy},
+  );
+
+  Future<Map<String, dynamic>> getLifeRoomStatus(String lifeRoomUid) =>
+      get('/life-room/$lifeRoomUid/status');
+
+  Future<Map<String, dynamic>> getLifeRoomMatchHistory(
+    String lifeRoomUid,
+  ) async {
+    final res = await get('/life-room/$lifeRoomUid/match-history');
+    return res;
+  }
+
+  Future<Map<String, dynamic>> createLifeRoomMatchHistory(
+    String lifeRoomUid,
+    Map<String, dynamic> body,
+  ) => post('/life-room/$lifeRoomUid/match-history', data: body);
+
+  Future<Map<String, dynamic>> deleteLifeRoomMatchHistory(
+    String lifeRoomUid,
+    String historyUid,
+  ) => delete('/life-room/$lifeRoomUid/match-history/$historyUid');
+
+  Future<List<Map<String, dynamic>>> getLifeRoomRecruitSessions(
+    String lifeRoomUid,
+  ) async {
+    final res = await get('/life-room/$lifeRoomUid/recruit-sessions');
+    final raw = res['sessions'];
+    if (raw is List) {
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createRecruitSession(
+    String lifeRoomUid,
+  ) => post('/life-room/$lifeRoomUid/recruit-sessions');
+
+  Future<Map<String, dynamic>> updateRecruitSession(
+    String lifeRoomUid,
+    String sessionUid,
+    String status,
+  ) => patch(
+    '/life-room/$lifeRoomUid/recruit-sessions/$sessionUid',
+    data: {'status': status},
+  );
+
+  Future<Map<String, dynamic>> confirmLifeRoomHall(
+    String lifeRoomUid,
+    int roomTypeId,
+  ) => post(
+    '/life-room/$lifeRoomUid/hall-confirm',
+    data: {'room_type_id': roomTypeId},
+  );
+
+  Future<Map<String, dynamic>> sendLifeRoomGroupMessage(
+    String lifeRoomUid,
+    String content,
+  ) => post(
+    '/life-room/$lifeRoomUid/group-chat',
+    data: {'content': content},
+  );
+
+  Future<List<Map<String, dynamic>>> getLifeRoomGroupChat(
+    String lifeRoomUid,
+  ) async {
+    final res = await get('/life-room/$lifeRoomUid/group-chat');
+    final raw = res['messages'];
+    if (raw is List) {
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getFillSurvey(String lifeRoomUid) =>
+      get('/life-room/$lifeRoomUid/fill-survey');
+
+  Future<Map<String, dynamic>> closeLifeRoomPeriod(String lifeRoomUid) =>
+      post('/life-room/$lifeRoomUid/auto-close');
+
+  Future<Map<String, dynamic>> updateSchool(
+    int schoolId,
+    Map<String, dynamic> body,
+  ) => put('/admin/schools/$schoolId', data: body);
+
+  String get currentUserId {
+    try {
+      final parts = _dio.options.headers['Authorization']?.toString().split('.');
+      if (parts != null && parts.length == 3) {
+        final payload = jsonDecode(utf8.decode(base64Decode(base64Url.normalize(parts[1]))));
+        return payload['sub']?.toString() ?? '';
+      }
+    } catch (_) {}
+    return '';
+  }
 
   // ── Chat Threads (new thread-based chat) ──
   /// Send message via thread (replaces direct receiver chat).
@@ -284,8 +460,8 @@ class ApiService {
   /// Mark thread as read.
   Future<Map<String, dynamic>> markThreadRead(String threadId) =>
       post('/chat/threads/$threadId/read');
-  Future<Map<String, dynamic>> leaveThread(String threadId) =>
-      post('/chat/threads/$threadId/leave');
+  Future<Map<String, dynamic>> leaveThread(String threadId, String reason) =>
+      post('/chat/threads/$threadId/leave', data: {'reason': reason.trim()});
   Future<Map<String, dynamic>> getThreadMeta(String threadId) =>
       get('/chat/threads/$threadId/meta');
   Future<Map<String, dynamic>> openThreadSurvey(String threadId) =>

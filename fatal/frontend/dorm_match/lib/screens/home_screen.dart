@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/match_controller.dart';
 import '../controllers/profile_controller.dart';
@@ -7,10 +8,14 @@ import '../services/api_service.dart';
 import '../utils/persona_scoring.dart';
 import 'survey_screen.dart';
 import 'matching_split_screen.dart';
+import 'life_room_screen.dart';
 import 'login_screen.dart';
 import 'persona_detail_screen.dart';
 import 'notices_screen.dart';
 import 'chat_threads_screen.dart';
+import 'match_screen.dart';
+import 'match_history_detail_screen.dart';
+import 'interest_rooms_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,18 +27,47 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _auth = Get.find<AuthController>();
   final _profileCtrl = Get.put(ProfileController());
-  final _matchCtrl = Get.isRegistered<MatchController>()
-      ? Get.find<MatchController>()
-      : Get.put(MatchController());
   final _api = ApiService();
   List<Map<String, dynamic>> _noticePreview = const [];
   bool _noticeLoading = true;
+  bool _needsHallConfirmation = false;
+  bool _hasInterestRooms = true;
+  bool _showTutorial = false;
+  static const _tutorialKey = 'tutorial_shown';
 
   @override
   void initState() {
     super.initState();
     _profileCtrl.fetchProfile();
     _loadNoticePreview();
+    _checkHallConfirmation();
+    _checkTutorial();
+  }
+
+  Future<void> _checkTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool(_tutorialKey) ?? false;
+    if (!shown && mounted) {
+      setState(() => _showTutorial = true);
+    }
+  }
+
+  Future<void> _dismissTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_tutorialKey, true);
+    setState(() => _showTutorial = false);
+  }
+
+  Future<void> _checkHallConfirmation() async {
+    try {
+      final res = await _api.getMatchingOptions();
+      if (mounted) {
+        setState(() {
+          _needsHallConfirmation = res['needs_hall_confirmation'] == true;
+          _hasInterestRooms = res['has_interest_rooms'] == true;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadNoticePreview() async {
@@ -68,30 +102,66 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openMatchingSplitIfStarted() async {
+    if (!_hasInterestRooms) {
+      Get.snackbar('안내', '관심관을 설정해주세요. 관심관이 설정되지 않으면 매칭이 오지 않아요');
+      return;
+    }
     final hasSurvey = await _ensureSurveySaved();
     if (!hasSurvey) return;
-    await _matchCtrl.fetchActiveSessions();
-    final hasConfirmed = _matchCtrl.activeSessions.any(
-      (s) => (s['status']?.toString() ?? '') == 'confirmed',
-    );
-    if (hasConfirmed) {
-      Get.snackbar('안내', '이미 매칭되었습니다.');
+    final matchCtrl = Get.isRegistered<MatchController>()
+        ? Get.find<MatchController>()
+        : Get.put(MatchController());
+    await Future.wait([
+      matchCtrl.fetchActiveSessions(),
+      matchCtrl.fetchThreads(),
+      matchCtrl.fetchCooldown(),
+    ]);
+    try {
+      final life = await _api.getCurrentLifeRoom();
+      if (life['life_room'] != null) {
+        Get.to(() => const LifeRoomScreen());
+        return;
+      }
+    } catch (_) {}
+
+    if (matchCtrl.hasStartedSession) {
+      Get.to(() => const MatchScreen());
       return;
     }
-    final hasHold = _matchCtrl.activeSessions.any((s) {
-      if ((s['status']?.toString() ?? '') != 'active') return false;
-      return (s['user_decision']?.toString() ?? '') == 'hold' ||
-          (s['candidate_decision']?.toString() ?? '') == 'hold';
-    });
-    if (hasHold) {
-      Get.snackbar('안내', '보류 중인 매칭이 있어 새 매칭을 시작할 수 없습니다.');
+
+    if (matchCtrl.isInCooldown) {
+      try {
+        final rows = await _api.getSessionHistory();
+        final items = List<Map<String, dynamic>>.from(rows);
+        final successRows = items.where(
+          (s) => (s['ui_status']?.toString() ?? '') == 'match_success',
+        );
+        final latest = successRows.isNotEmpty ? successRows.first : null;
+        if (latest != null) {
+          Get.to(() => MatchHistoryDetailScreen(session: latest));
+          return;
+        }
+      } catch (_) {}
+      Get.snackbar('안내', '재매칭 대기 시간이 남아 있습니다.');
       return;
     }
+
     try {
       final res = await _api.getMatchingOptions();
       final phase = (res['phase'] ?? 'closed').toString();
       if (phase == 'closed') {
         Get.snackbar('오류', '매칭 기간이 아닙니다.');
+        return;
+      }
+      if (phase == 'life') {
+        try {
+          final life = await _api.getCurrentLifeRoom();
+          if (life['life_room'] != null) {
+            Get.to(() => const LifeRoomScreen());
+            return;
+          }
+        } catch (_) {}
+        Get.snackbar('안내', '현재 생활 기간입니다. 생활방에서 기능을 이용하세요.');
         return;
       }
       Get.to(() => const MatchingSplitScreen());
@@ -104,9 +174,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final user = _auth.user.value;
 
-    return Scaffold(
-      body: SafeArea(
-        child: CustomScrollView(
+    return Stack(
+      children: [
+        Scaffold(
+          body: SafeArea(
+            child: CustomScrollView(
           slivers: [
             // Top bar
             SliverToBoxAdapter(
@@ -311,7 +383,48 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // 현재 매칭중인 기숙사 찾기 버튼
+            if (_needsHallConfirmation)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+                  child: GestureDetector(
+                    onTap: () async {
+                      final hasSurvey = await _ensureSurveySaved();
+                      if (!hasSurvey) return;
+                      Get.to(() => const InterestRoomsScreen())?.then((_) {
+                        _checkHallConfirmation();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 22),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              '관심관을 설정해주세요. 관심관이 설정되지 않으면 매칭이 오지 않아요',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF991B1B),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, color: Color(0xFFDC2626), size: 14),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // 기숙사 찾기 버튼
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
@@ -342,7 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '현재 매칭중인 기숙사 찾기',
+                                '기숙사 찾기',
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
@@ -355,6 +468,72 @@ class _HomeScreenState extends State<HomeScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFFD8B4FE),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 관심관 설정하기 버튼
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: GestureDetector(
+                  onTap: () async {
+                    final hasSurvey = await _ensureSurveySaved();
+                    if (!hasSurvey) return;
+                    Get.to(() => const InterestRoomsScreen());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 20,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFCD34D)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x2DF59E0B),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.meeting_room_rounded, color: Colors.white, size: 22),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '관심관 설정하기',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '내가 매칭 받을 관을 등록하세요',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFFDE68A),
                                 ),
                               ),
                             ],
@@ -450,103 +629,193 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Center(child: CircularProgressIndicator()),
                       )
                     : _noticePreview.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.only(bottom: 16),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('등록된 공지사항이 없습니다.'),
+                    ? const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('등록된 공지사항이 없습니다.'),
+                        ),
+                      )
+                    : Column(
+                        children: _noticePreview.map((n) {
+                          return GestureDetector(
+                            onTap: () => Get.to(() => const NoticesScreen()),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x0D000000),
+                                    blurRadius: 12,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF2563EB,
+                                      ).withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.campaign_outlined,
+                                      color: Color(0xFF2563EB),
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          (n['title'] ?? '').toString(),
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1C1C1E),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          (n['body'] ?? '').toString(),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey.shade600,
+                                            height: 1.4,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _noticeDate(n),
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade400,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 14,
+                                    color: Color(0xFFD1D5DB),
+                                  ),
+                                ],
+                              ),
                             ),
-                          )
-                        : Column(
-                            children: _noticePreview.map((n) {
-                              return GestureDetector(
-                                onTap: () => Get.to(() => const NoticesScreen()),
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0x0D000000),
-                                        blurRadius: 12,
-                                        offset: Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFF2563EB,
-                                          ).withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(
-                                          Icons.campaign_outlined,
-                                          color: Color(0xFF2563EB),
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              (n['title'] ?? '').toString(),
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                                color: Color(0xFF1C1C1E),
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              (n['body'] ?? '').toString(),
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey.shade600,
-                                                height: 1.4,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              _noticeDate(n),
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey.shade400,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 14,
-                                        color: Color(0xFFD1D5DB),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                          );
+                        }).toList(),
+                      ),
               ),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
+        ),
+      ),
+    ),
+    if (_showTutorial) _buildTutorialOverlay(),
+    ],
+    );
+  }
+
+  Widget _buildTutorialOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black54,
+        child: Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 320,
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '시작하기',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 20),
+                  GestureDetector(
+                    onTap: () async {
+                      final hasSurvey = await _ensureSurveySaved();
+                      if (!hasSurvey) return;
+                      Get.to(() => const SurveyScreen())?.then((_) {
+                        _profileCtrl.fetchProfile();
+                      });
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '설문 작성하기',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () async {
+                      final hasSurvey = await _ensureSurveySaved();
+                      if (!hasSurvey) return;
+                      Get.to(() => const InterestRoomsScreen())?.then((_) {
+                        _checkHallConfirmation();
+                      });
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '관심관 설정하기',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: _dismissTutorial,
+                    child: const Text(
+                      '닫기',
+                      style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -643,4 +912,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-

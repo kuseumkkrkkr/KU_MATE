@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import '../models/profile.dart';
 import '../utils/persona_scoring.dart';
 import 'persona_compare_screen.dart';
@@ -9,165 +12,156 @@ class PersonaDetailScreen extends StatelessWidget {
 
   const PersonaDetailScreen({super.key, required this.profile});
 
-  static const Map<String, String> _personaDescriptions = {
-    '학습집중형': '방 안에서 조용히 공부하는 것을 선호하고, 소음과 교류에 민감해요.',
-    '섬세감성형': '실내 분위기와 청결에 신경 쓰며 감성적인 생활을 추구해요.',
-    '야행성게이머형': '늦은 밤까지 게임과 여가 활동을 즐기는 편이에요.',
-    'FM관리형': '규칙적이고 청결한 생활을 중시하고, 룸메이트와도 기준 공유를 원해요.',
-    '생존형': '최소한의 생활을 하며, 크게 신경 쓰지 않는 타입이에요.',
-    '공동체형': '룸메이트와 식사, 대화, 활동을 함께하며 가까운 관계를 원해요.',
-    '생활분리형': '개인 생활과 공동 생활의 경계를 중요하게 생각해요.',
-    '수면민감형': '수면 환경(소리, 빛, 시간)에 매우 민감해요.',
-  };
-
-  static const Map<String, Color> _personaColors = {
-    '학습집중형': Color(0xFF2563EB),
-    '섬세감성형': Color(0xFFEC4899),
-    '야행성게이머형': Color(0xFF7C3AED),
-    'FM관리형': Color(0xFF059669),
-    '생존형': Color(0xFF9CA3AF),
-    '공동체형': Color(0xFFF59E0B),
-    '생활분리형': Color(0xFF6366F1),
-    '수면민감형': Color(0xFF14B8A6),
-  };
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final scores = calculatePersonaScores(profile);
-    final topPersona = scores.keys.first;
-    final topColor = _personaColors[topPersona] ?? const Color(0xFF2563EB);
+    final topPersona = scores.keys.isEmpty ? '-' : scores.keys.first;
+    final topScore = scores[topPersona] ?? 0.0;
 
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('나의 유형 상세보기')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [topColor, topColor.withValues(alpha: 0.75)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              _GlassCard(
+                radius: 24,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '가장 가까운 유형',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface.withValues(alpha: 0.72),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        topPersona,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '현재 응답 기준 ${topScore.toStringAsFixed(1)}% 일치',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: scheme.onSurface.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: topColor.withValues(alpha: 0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '가장 잘 맞는 유형',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      topPersona,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _personaDescriptions[topPersona] ?? '',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-              const SizedBox(height: 28),
-              const Text(
+              const SizedBox(height: 26),
+              Text(
                 '유형별 일치도',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1C1C1E),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: scheme.onSurface,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                '설문 응답과 각 유형의 전형적인 패턴을 비교한 결과예요.',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                '카드를 누르면 세부 항목 비교로 이동합니다.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: scheme.onSurface.withValues(alpha: 0.72),
+                ),
               ),
-              const SizedBox(height: 20),
-              ...scores.entries.map((e) {
-                final color = _personaColors[e.key] ?? const Color(0xFF2563EB);
-                return InkWell(
-                  onTap: () {
-                    Get.to(
-                      () => PersonaCompareScreen(
-                        profile: profile,
-                        personaName: e.key,
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  e.key,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+              const SizedBox(height: 16),
+              ...scores.entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _GlassCard(
+                    radius: 16,
+                    onTap: () {
+                      Get.to(
+                        () => PersonaCompareScreen(
+                          profile: profile,
+                          personaName: entry.key,
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: scheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        entry.key,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: scheme.onSurface,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 12,
+                                      color: scheme.onSurface.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 6),
-                                Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 12,
-                                  color: Colors.grey.shade400,
+                              ),
+                              Text(
+                                '${entry.value.toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.primary,
                                 ),
-                              ],
-                            ),
-                            Text(
-                              '${e.value.toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: color,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: (entry.value / 100).clamp(0.0, 1.0),
+                              minHeight: 9,
+                              backgroundColor: const Color(0xFFE5E7EB),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                scheme.primary,
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: (e.value / 100).clamp(0.0, 1.0),
-                            minHeight: 10,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation<Color>(color),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -175,6 +169,65 @@ class PersonaDetailScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GlassCard extends StatelessWidget {
+  final Widget child;
+  final double radius;
+  final VoidCallback? onTap;
+
+  const _GlassCard({required this.child, this.radius = 16, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final content = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.32),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(
+              color: scheme.primary.withValues(alpha: 0.22),
+              width: 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.72),
+                blurRadius: 0,
+                spreadRadius: 0.6,
+              ),
+              const BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.72),
+              width: 0.8,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: content,
       ),
     );
   }

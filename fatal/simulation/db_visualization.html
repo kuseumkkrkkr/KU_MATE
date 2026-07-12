@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB Visualization - Roommate Matching</title>
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --border: #30363d;
+  --text: #c9d1d9; --text2: #8b949e; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d29922;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; padding:24px; line-height:1.6; }
+h1 { text-align:center; margin-bottom:8px; color:var(--accent); }
+h2 { color:var(--accent); border-bottom:2px solid var(--border); padding-bottom:8px; margin:32px 0 16px; }
+h3 { color:var(--text); margin:16px 0 8px; }
+h4 { color:var(--text2); margin:12px 0 6px; }
+nav { text-align:center; margin-bottom:24px; }
+nav a { color:var(--accent); margin:0 12px; text-decoration:none; }
+nav a:hover { text-decoration:underline; }
+.table-detail { background:var(--card); border:1px solid var(--border); border-radius:8px; margin:8px 0; padding:12px 16px; }
+.table-detail summary { cursor:pointer; font-size:15px; padding:4px 0; }
+.table-name { font-weight:700; color:var(--green); }
+.table-count { color:var(--text2); font-size:13px; }
+.json-preview { background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:12px; overflow-x:auto; font-size:12px; font-family:'Cascadia Code',Consolas,monospace; color:var(--text2); max-height:300px; overflow-y:auto; margin:8px 0; }
+.bar-chart { margin:8px 0; }
+.bar-row { display:flex; align-items:center; margin:3px 0; }
+.bar-label { width:140px; font-size:13px; text-align:right; padding-right:8px; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bar-track { flex:1; background:var(--border); border-radius:4px; height:18px; position:relative; }
+.bar-fill { background:var(--accent); border-radius:4px; height:100%; min-width:2px; transition:width 0.3s; }
+.bar-value { width:50px; text-align:right; font-size:13px; color:var(--text2); padding-left:8px; }
+.bool-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.bool-stat { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:8px 12px; display:flex; flex-direction:column; align-items:center; min-width:120px; }
+.bool-title { font-weight:600; font-size:13px; margin-bottom:4px; }
+.bool-true { color:var(--green); font-size:13px; }
+.bool-false { color:var(--red); font-size:13px; }
+</style>
+</head>
+<body>
+<h1>Roommate Matching DB Visualization</h1>
+<nav>
+  <a href="#api">roommates_api.db</a>
+  <a href="#schools">schools.db</a>
+  <a href="#sim">roommates.db (simulation)</a>
+</nav>
+<h2>생성 시각: 2026-06-30 06:56:50</h2>
+<h2 id="api">roommates_api.db (API 메인 DB)</h2>
+<h3>테이블 개요</h3>
+<details class="table-detail"><summary><span class="table-name">chat_messages</span> <span class="table-count">(7행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), session_uid (TEXT), thread_uid (TEXT), sender (TEXT), receiver (TEXT), content (TEXT), type (TEXT), read (INTEGER), delivered_at (TEXT), expires_at (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "40835205-c06d-48dd-af8e-1f2d46b11ee0",
+    "session_uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "thread_uid": "365a55b6-f2e0-4874-b79e-ff3c8051aa4d",
+    "sender": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "receiver": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "content": "아별",
+    "type": "text",
+    "read": 0,
+    "delivered_at": null,
+    "expires_at": "2026-07-06T21:44:15.829312Z",
+    "created_at": "2026-06-29T21:44:15.829312Z"
+  },
+  {
+    "uid": "39755bbb-57f3-4f11-b962-9e918626efb4",
+    "session_uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "thread_uid": "365a55b6-f2e0-4874-b79e-ff3c8051aa4d",
+    "sender": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "receiver": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "content": "아별",
+    "type": "text",
+    "read": 0,
+    "delivered_at": null,
+    "expires_at": "2026-07-06T21:44:18.021039Z",
+    "created_at": "2026-06-29T21:44:18.021039Z"
+  },
+  {
+    "uid": "c578e0b3-e81d-4237-9904-4d2eae6f09c9",
+    "session_uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "thread_uid": "365a55b6-f2e0-4874-b79e-ff3c8051aa4d",
+    "sender": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "receiver": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "content": "아별",
+    "type": "text",
+    "read": 0,
+    "delivered_at": null,
+    "expires_at": "2026-07-06T21:44:20.438913Z",
+    "created_at": "2026-06-29T21:44:20.438913Z"
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">chat_thread_leaves</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> thread_uid (TEXT), user_uid (TEXT), left_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">chat_threads</span> <span class="table-count">(1행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), session_uid (TEXT), user_a (TEXT), user_b (TEXT), status (TEXT), closed_reason (TEXT), chat_exchange_count (INTEGER), last_message_at (TEXT), created_at (TEXT), closed_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "365a55b6-f2e0-4874-b79e-ff3c8051aa4d",
+    "session_uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "user_a": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "user_b": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "status": "open",
+    "closed_reason": null,
+    "chat_exchange_count": 7,
+    "last_message_at": "2026-06-29T21:44:45.431045Z",
+    "created_at": "2026-06-29T21:44:04.815269Z",
+    "closed_at": null
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">global_notices</span> <span class="table-count">(4행)</span></summary><p><strong>컬럼:</strong> id (INTEGER), title (TEXT), body (TEXT), is_pinned (INTEGER), created_at (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "id": 5,
+    "title": "룸앤틱 베타 서비스 오픈",
+    "body": "룸앤틱 베타 서비스를 시작했습니다. 성향 기반으로 기숙사 룸메이트를 찾아보세요.",
+    "is_pinned": 0,
+    "created_at": "2026-05-01T00:00:00Z",
+    "updated_at": "2026-05-01T00:00:00Z"
+  },
+  {
+    "id": 6,
+    "title": "설문 기능 업데이트",
+    "body": "설문 수정과 유형 상세 비교 기능을 개선했습니다.",
+    "is_pinned": 0,
+    "created_at": "2026-05-03T00:00:00Z",
+    "updated_at": "2026-05-03T00:00:00Z"
+  },
+  {
+    "id": 7,
+    "title": "매칭 알고리즘 개선",
+    "body": "성향 분석 정확도와 우선순위 기반 매칭 로직을 업데이트했습니다.",
+    "is_pinned": 0,
+    "created_at": "2026-05-08T00:00:00Z",
+    "updated_at": "2026-05-08T00:00:00Z"
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_events</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), author_uid (TEXT), title (TEXT), start_at (TEXT), end_at (TEXT), view_type (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_fill_policy</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), period (TEXT), strategy (TEXT), changed_by (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_match_history</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), matched_with_type (TEXT), matched_with_uid (TEXT), status (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_members</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), user_uid (TEXT), joined_at (TEXT), is_active (INTEGER)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_notice_pins</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), user_uid (TEXT), post_uid (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_posts</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), author_uid (TEXT), title (TEXT), body (TEXT), pinned (INTEGER), created_at (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_presence</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), user_uid (TEXT), status (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_recruit_sessions</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), status (TEXT), created_at (TEXT), closed_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_rules</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), body (TEXT), created_by (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_room_todos</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), life_room_uid (TEXT), assignee_uid (TEXT), title (TEXT), due_date (TEXT), done (INTEGER), created_by (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">life_rooms</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), school_id (INTEGER), host_uid (TEXT), status (TEXT), room_type_id (INTEGER), target_capacity (INTEGER), fixed_hall (INTEGER), fill_strategy (TEXT), pre_policy_change_count (INTEGER), apply_policy_change_count (INTEGER), rules_change_count (INTEGER), created_at (TEXT), updated_at (TEXT), closed_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_cooldowns</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_uid (TEXT), cooldown_until (TEXT), reason (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_history</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), session_uid (TEXT), user_a (TEXT), user_b (TEXT), status (TEXT), matched_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_pair_blocks</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_a (TEXT), user_b (TEXT), blocked_by (TEXT), reason (TEXT), source_session_uid (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_pool_candidates</span> <span class="table-count">(5행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_uid (TEXT), candidate_uid (TEXT), candidate_type (TEXT), display_name (TEXT), shared_score (REAL), member_scores (TEXT), member_names (TEXT), tier (TEXT), room_capacity (INTEGER), detail (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "1799271d-74b8-434b-8e7a-f2f499f22037",
+    "user_uid": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "candidate_uid": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "candidate_type": "individual",
+    "display_name": "최아별",
+    "shared_score": 71.72,
+    "member_scores": "[71.72]",
+    "member_names": "[\"최아별\"]",
+    "tier": "70-80",
+    "room_capacity": 2,
+    "detail": "{\"향/음주/게임\": 77.0, \"수면\": 85.9, \"위생\": 92.0, \"생활\": 72.4, \"교류\": 90.0}",
+    "created_at": "2026-06-29T21:43:55.941631Z"
+  },
+  {
+    "uid": "364c8773-7d5f-486c-a335-fa5c3ad4e2d1",
+    "user_uid": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "candidate_uid": "49ec4348-ed7f-4e5a-a388-ece086daaedd",
+    "candidate_type": "individual",
+    "display_name": "이온재",
+    "shared_score": 73.85,
+    "member_scores": "[73.85]",
+    "member_names": "[\"이온재\"]",
+    "tier": "70-80",
+    "room_capacity": 4,
+    "detail": "{\"향/음주/게임\": 77.0, \"수면\": 96.1, \"위생\": 89.6, \"생활\": 86.8, \"교류\": 65.0}",
+    "created_at": "2026-06-29T21:43:55.941631Z"
+  },
+  {
+    "uid": "589672db-564f-44fc-81a2-e52eb85e2d2b",
+    "user_uid": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "candidate_uid": "75780963-69be-477f-8178-a8e3c9b216df",
+    "candidate_type": "individual",
+    "display_name": "박호서",
+    "shared_score": 70.89,
+    "member_scores": "[70.89]",
+    "member_names": "[\"박호서\"]",
+    "tier": "70-80",
+    "room_capacity": 3,
+    "detail": "{\"향/음주/게임\": 77.0, \"수면\": 86.7, \"위생\": 88.5, \"생활\": 81.6, \"교류\": 90.0}",
+    "created_at": "2026-06-29T21:43:55.941631Z"
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_requests</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), from_user (TEXT), to_user (TEXT), status (TEXT), created_at (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_session_members</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), session_uid (TEXT), user_uid (TEXT), role (TEXT), joined_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">match_sessions</span> <span class="table-count">(1행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_uid (TEXT), candidate_uid (TEXT), candidate_type (TEXT), room_member_uids (TEXT), delegate_uid (TEXT), status (TEXT), user_confirmed (INTEGER), candidate_confirmed (INTEGER), user_decision (TEXT), candidate_decision (TEXT), user_reject_reason (TEXT), candidate_reject_reason (TEXT), user_survey_opened (INTEGER), candidate_survey_opened (INTEGER), last_activity_at (TEXT), created_at (TEXT), confirmed_at (TEXT), closed_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "user_uid": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "candidate_uid": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "candidate_type": "individual",
+    "room_member_uids": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "delegate_uid": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "status": "active",
+    "user_confirmed": 0,
+    "candidate_confirmed": 0,
+    "user_decision": "accepted",
+    "candidate_decision": null,
+    "user_reject_reason": "좋은것 같아요",
+    "candidate_reject_reason": null,
+    "user_survey_opened": 0,
+    "candidate_survey_opened": 0,
+    "last_activity_at": "2026-06-29T21:44:56.315643Z",
+    "created_at": "2026-06-29T21:44:04.815269Z",
+    "confirmed_at": null,
+    "closed_at": null
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">notices</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> id (INTEGER), title (TEXT), body (TEXT), is_pinned (INTEGER), created_at (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">pairings</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), pair_json (TEXT), generated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">profiles</span> <span class="table-count">(801행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_uid (TEXT), persona (TEXT), name (TEXT), student_id (TEXT), birth_year (INTEGER), college (TEXT), department (TEXT), dorm_duration (INTEGER), dormitory_hall (TEXT), non_negotiable_items (TEXT), non_negotiable_weights (TEXT), home_visit_cycle (INTEGER), perfume (INTEGER), indoor_scent_sensitivity (INTEGER), alcohol_tolerance (REAL), alcohol_frequency (INTEGER), drunk_habit (INTEGER), gaming_hours_per_week (INTEGER), speaker_use (INTEGER), exercise (INTEGER), bedtime (INTEGER), wake_time (INTEGER), sleep_habit (INTEGER), sleep_sensitivity (INTEGER), alarm_strength (INTEGER), sleep_light (INTEGER), snoring (INTEGER), shower_duration (INTEGER), shower_time (INTEGER), shower_cycle (INTEGER), cleaning_cycle (INTEGER), ventilation (REAL), hairdryer_in_bathroom (INTEGER), toilet_paper_share (INTEGER), indoor_eating (INTEGER), smoking (INTEGER), temperature_pref (INTEGER), indoor_call (INTEGER), bug_handling (INTEGER), laundry_cycle (INTEGER), drying_rack (INTEGER), fridge_use (INTEGER), study_in_room (INTEGER), noise_sensitivity (INTEGER), desired_intimacy (INTEGER), meal_together (INTEGER), exercise_together (INTEGER), friend_invite (INTEGER), matching_phase (TEXT), hope_halls (TEXT), accepted_hall (TEXT), room_capacity (INTEGER), preferred_room_type_ids (TEXT), fixed_room_type_id (INTEGER), interest_room_type_ids (TEXT), fixed_interest_room_type_id (INTEGER), pre_change_count (INTEGER), apply_change_count (INTEGER), pre_last_changed_at (TEXT), apply_last_changed_at (TEXT), hall_confirmed_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "d0906b3e-27c5-4096-9617-154295282c05",
+    "user_uid": "3644a078-818f-498c-aa00-acf38e1de83c",
+    "persona": "독서실형",
+    "name": "양소건",
+    "student_id": "2020126225",
+    "birth_year": 2004,
+    "college": "",
+    "department": "",
+    "dorm_duration": 1,
+    "dormitory_hall": "진리관",
+    "non_negotiable_items": "[]",
+    "non_negotiable_weights": "[]",
+    "home_visit_cycle": 2,
+    "perfume": 0,
+    "indoor_scent_sensitivity": 3,
+    "alcohol_tolerance": 2.5,
+    "alcohol_frequency": 2,
+    "drunk_habit": 0,
+    "gaming_hours_per_week": 5,
+    "speaker_use": 0,
+    "exercise": 0,
+    "bedtime": 22,
+    "wake_time": 6,
+    "sleep_habit": 0,
+    "sleep_sensitivity": 4,
+    "alarm_strength": 3,
+    "sleep_light": 0,
+    "snoring": 0,
+    "shower_duration": 15,
+    "shower_time": 20,
+    "shower_cycle": 4,
+    "cleaning_cycle": 14,
+    "ventilation": 1.0,
+    "hairdryer_in_bathroom": 1,
+    "toilet_paper_share": 1,
+    "indoor_eating": 0,
+    "smoking": 0,
+    "temperature_pref": 1,
+    "indoor_call": 0,
+    "bug_handling": 1,
+    "laundry_cycle": 7,
+    "drying_rack": 1,
+    "fridge_use": 0,
+    "study_in_room": 1,
+    "noise_sensitivity": 5,
+    "desired_intimacy": 1,
+    "meal_together": 2,
+    "exercise_together": 1,
+    "friend_invite": 0,
+    "matching_phase": "main",
+    "hope_halls": "[]",
+    "accepted_hall": "진리관",
+    "room_capacity": 3,
+    "preferred_room_type_ids": "[]",
+    "fixed_room_type_id": 119,
+    "interest_room_type_ids": "[]",
+    "fixed_interest_room_type_id": 119,
+    "pre_change_count": 0,
+    "apply_change_count": 0,
+    "pre_last_changed_at": "",
+    "apply_last_changed_at": "",
+    "hall_confirmed_at": ""
+  },
+  {
+    "uid": "5fda557a-1594-4398-83a5-bade907bba97",
+    "user_uid": "db6992b3-ac96-4f0d-bef9-810e1d4850a6",
+    "persona": "독서실형",
+    "name": "배연찬",
+    "student_id": "2019895667",
+    "birth_year": 2003,
+    "college": "",
+    "department": "",
+    "dorm_duration": 1,
+    "dormitory_hall": "미래관",
+    "non_neg
+... (truncated)</pre></details>
+<details class="table-detail"><summary><span class="table-name">reviews</span> <span class="table-count">(1행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), reviewer (TEXT), reviewee (TEXT), rating (REAL), body (TEXT), session_uid (TEXT), decision_type (TEXT), created_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "599025ff-e558-48f2-bca8-0df14d664796",
+    "reviewer": "309a97d1-6302-4db1-b9de-868f0203d74c",
+    "reviewee": "a016aa0b-fa18-4461-80a1-5a1e45531bc5",
+    "rating": 5.0,
+    "body": "[매칭 성공 사유] 좋은것 같아요",
+    "session_uid": "d7ce0e05-1328-44ed-aa7a-50209925fedb",
+    "decision_type": "accept",
+    "created_at": "2026-06-29T21:44:56.315643Z"
+  }
+]</pre></details>
+<details class="table-detail"><summary><span class="table-name">school_notices</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> id (INTEGER), school_id (INTEGER), title (TEXT), body (TEXT), is_pinned (INTEGER), created_at (TEXT), updated_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">system_events</span> <span class="table-count">(0행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), user_uid (TEXT), event_type (TEXT), payload (TEXT), created_at (TEXT), expire_at (TEXT)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[]</pre></details>
+<details class="table-detail"><summary><span class="table-name">users</span> <span class="table-count">(801행)</span></summary><p><strong>컬럼:</strong> uid (TEXT), login_id (TEXT), student_id (TEXT), birth_year (INTEGER), password_hash (TEXT), name (TEXT), is_enrolled (INTEGER), school_name (TEXT), college (TEXT), department (TEXT), region_name (TEXT), gender (TEXT), is_suspended (INTEGER)</p><p><strong>샘플 (최대 3행):</strong></p><pre class="json-preview">[
+  {
+    "uid": "3644a078-818f-498c-aa00-acf38e1de83c",
+    "login_id": "didthrjs",
+    "student_id": "2020126225",
+    "birth_year": 2005,
+    "password_hash": "f3f5b3a3e3da09791cbd0cfb187a462d$745257e310308fc5d530e28082ae0571e9622754977f6c47fb94a7a3ecc829b4",
+    "name": "양소건",
+    "is_enrolled": 1,
+    "school_name": "고려대학교",
+    "college": "인문대학",
+    "department": "국어국문과",
+    "region_name": "",
+    "gender": "male",
+    "is_suspended": 0
+  },
+  {
+    "uid": "db6992b3-ac96-4f0d-bef9-810e1d4850a6",
+    "login_id": "qoduscks",
+    "student_id": "2019895667",
+    "birth_year": 1999,
+    "password_hash": "9673e1e14c4ef3715a6d4948fa2e4065$ee134581161e8908438aee40e8b4a97faf8ad168572f67cf1f0d28fb1e60bf1b",
+    "name": "배연찬",
+    "is_enrolled": 1,
+    "school_name": "고려대학교",
+    "college": "사회과학대학",
+    "department": "사회학과",
+    "region_name": "",
+    "gender": "female",
+    "is_suspended": 0
+  },
+  {
+    "uid": "3dbcbf93-2e5c-4437-ad9d-879d5272389f",
+    "login_id": "wjsgmlrua",
+    "student_id": "2023969693",
+    "birth_year": 2006,
+    "password_hash": "ec36375d5ee1f8bf42b50eb5b1eb0f60$f40eb2f17846882cba6f9bdedb947656e992d774a1005973011a9cfee4f2a07f",
+    "name": "전희겸",
+    "is_enrolled": 1,
+    "school_name": "고려대학교",
+    "college": "경영대학",
+    "department": "국제경영",
+    "region_name": "",
+    "gender": "male",
+    "is_suspended": 0
+  }
+]</pre></details>
+<h3>프로필 통계 (총 801명)</h3>
+<h4>페르소나 분포</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">수면민감형</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">200</span></div><div class="bar-row"><span class="bar-label">야행성게이머형</span><div class="bar-track"><div class="bar-fill" style="width:50.5%"></div></div><span class="bar-value">101</span></div><div class="bar-row"><span class="bar-label">독서실형</span><div class="bar-track"><div class="bar-fill" style="width:50.0%"></div></div><span class="bar-value">100</span></div><div class="bar-row"><span class="bar-label">FM군대형</span><div class="bar-track"><div class="bar-fill" style="width:50.0%"></div></div><span class="bar-value">100</span></div><div class="bar-row"><span class="bar-label">생존형</span><div class="bar-track"><div class="bar-fill" style="width:50.0%"></div></div><span class="bar-value">100</span></div><div class="bar-row"><span class="bar-label">공동체형</span><div class="bar-track"><div class="bar-fill" style="width:50.0%"></div></div><span class="bar-value">100</span></div><div class="bar-row"><span class="bar-label">생활분리형</span><div class="bar-track"><div class="bar-fill" style="width:50.0%"></div></div><span class="bar-value">100</span></div></div>
+<h4>단과대 분포</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">경영대학</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">1</span></div></div>
+<h4>학과 분포</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">회계학과</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">1</span></div></div>
+<h4>수치 필드 분포</h4>
+<h4>home_visit_cycle (평균 1.79, 범위 1~4)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">626</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:27.8%"></div></div><span class="bar-value">174</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:0.2%"></div></div><span class="bar-value">1</span></div></div>
+<h4>indoor_scent_sensitivity (평균 3.39, 범위 2~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">642</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:24.6%"></div></div><span class="bar-value">158</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:0.2%"></div></div><span class="bar-value">1</span></div></div>
+<h4>alcohol_tolerance (평균 2.5, 범위 1.0~2.5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">2.5</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">800</span></div><div class="bar-row"><span class="bar-label">1.0</span><div class="bar-track"><div class="bar-fill" style="width:0.1%"></div></div><span class="bar-value">1</span></div></div>
+<h4>alcohol_frequency (평균 2.0, 범위 2~2)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">801</span></div></div>
+<h4>gaming_hours_per_week (평균 11.47, 범위 5~30)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">10</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">510</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:26.5%"></div></div><span class="bar-value">135</span></div><div class="bar-row"><span class="bar-label">15</span><div class="bar-track"><div class="bar-fill" style="width:9.6%"></div></div><span class="bar-value">49</span></div><div class="bar-row"><span class="bar-label">30</span><div class="bar-track"><div class="bar-fill" style="width:7.5%"></div></div><span class="bar-value">38</span></div><div class="bar-row"><span class="bar-label">20</span><div class="bar-track"><div class="bar-fill" style="width:7.3%"></div></div><span class="bar-value">37</span></div><div class="bar-row"><span class="bar-label">25</span><div class="bar-track"><div class="bar-fill" style="width:6.3%"></div></div><span class="bar-value">32</span></div></div>
+<h4>bedtime (평균 15.1, 범위 0~23)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">23</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">434</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:22.1%"></div></div><span class="bar-value">96</span></div><div class="bar-row"><span class="bar-label">0</span><div class="bar-track"><div class="bar-fill" style="width:21.9%"></div></div><span class="bar-value">95</span></div><div class="bar-row"><span class="bar-label">22</span><div class="bar-track"><div class="bar-fill" style="width:17.5%"></div></div><span class="bar-value">76</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:6.9%"></div></div><span class="bar-value">30</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:5.8%"></div></div><span class="bar-value">25</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:5.3%"></div></div><span class="bar-value">23</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:5.1%"></div></div><span class="bar-value">22</span></div></div>
+<h4>wake_time (평균 8.0, 범위 6~10)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">8</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">274</span></div><div class="bar-row"><span class="bar-label">7</span><div class="bar-track"><div class="bar-fill" style="width:64.6%"></div></div><span class="bar-value">177</span></div><div class="bar-row"><span class="bar-label">9</span><div class="bar-track"><div class="bar-fill" style="width:60.9%"></div></div><span class="bar-value">167</span></div><div class="bar-row"><span class="bar-label">10</span><div class="bar-track"><div class="bar-fill" style="width:33.9%"></div></div><span class="bar-value">93</span></div><div class="bar-row"><span class="bar-label">6</span><div class="bar-track"><div class="bar-fill" style="width:32.8%"></div></div><span class="bar-value">90</span></div></div>
+<h4>sleep_sensitivity (평균 3.37, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">218</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:92.7%"></div></div><span class="bar-value">202</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:79.8%"></div></div><span class="bar-value">174</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:67.9%"></div></div><span class="bar-value">148</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:27.1%"></div></div><span class="bar-value">59</span></div></div>
+<h4>alarm_strength (평균 3.25, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">234</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:85.0%"></div></div><span class="bar-value">199</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:65.8%"></div></div><span class="bar-value">154</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:52.6%"></div></div><span class="bar-value">123</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:38.9%"></div></div><span class="bar-value">91</span></div></div>
+<h4>shower_duration (평균 14.44, 범위 10~15)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">15</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">711</span></div><div class="bar-row"><span class="bar-label">10</span><div class="bar-track"><div class="bar-fill" style="width:12.7%"></div></div><span class="bar-value">90</span></div></div>
+<h4>shower_time (평균 19.5, 범위 0~23)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">22</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">284</span></div><div class="bar-row"><span class="bar-label">23</span><div class="bar-track"><div class="bar-fill" style="width:65.8%"></div></div><span class="bar-value">187</span></div><div class="bar-row"><span class="bar-label">21</span><div class="bar-track"><div class="bar-fill" style="width:61.3%"></div></div><span class="bar-value">174</span></div><div class="bar-row"><span class="bar-label">0</span><div class="bar-track"><div class="bar-fill" style="width:29.9%"></div></div><span class="bar-value">85</span></div><div class="bar-row"><span class="bar-label">20</span><div class="bar-track"><div class="bar-fill" style="width:25.0%"></div></div><span class="bar-value">71</span></div></div>
+<h4>shower_cycle (평균 2.05, 범위 0~4)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">444</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:22.3%"></div></div><span class="bar-value">99</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:21.6%"></div></div><span class="bar-value">96</span></div><div class="bar-row"><span class="bar-label">0</span><div class="bar-track"><div class="bar-fill" style="width:19.8%"></div></div><span class="bar-value">88</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:16.7%"></div></div><span class="bar-value">74</span></div></div>
+<h4>cleaning_cycle (평균 8.78, 범위 1~30)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">7</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">387</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:35.1%"></div></div><span class="bar-value">136</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:25.1%"></div></div><span class="bar-value">97</span></div><div class="bar-row"><span class="bar-label">14</span><div class="bar-track"><div class="bar-fill" style="width:24.8%"></div></div><span class="bar-value">96</span></div><div class="bar-row"><span class="bar-label">30</span><div class="bar-track"><div class="bar-fill" style="width:22.0%"></div></div><span class="bar-value">85</span></div></div>
+<h4>ventilation (평균 1.6, 범위 1.0~5.0)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">1.0</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">643</span></div><div class="bar-row"><span class="bar-label">5.0</span><div class="bar-track"><div class="bar-fill" style="width:9.0%"></div></div><span class="bar-value">58</span></div><div class="bar-row"><span class="bar-label">3.0</span><div class="bar-track"><div class="bar-fill" style="width:8.2%"></div></div><span class="bar-value">53</span></div><div class="bar-row"><span class="bar-label">4.0</span><div class="bar-track"><div class="bar-fill" style="width:7.3%"></div></div><span class="bar-value">47</span></div></div>
+<h4>temperature_pref (평균 2.91, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">230</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:80.9%"></div></div><span class="bar-value">186</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:80.9%"></div></div><span class="bar-value">186</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:50.9%"></div></div><span class="bar-value">117</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:35.7%"></div></div><span class="bar-value">82</span></div></div>
+<h4>bug_handling (평균 2.99, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">277</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:63.2%"></div></div><span class="bar-value">175</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:59.2%"></div></div><span class="bar-value">164</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:35.4%"></div></div><span class="bar-value">98</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:31.4%"></div></div><span class="bar-value">87</span></div></div>
+<h4>laundry_cycle (평균 5.91, 범위 1~7)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">7</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">625</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:14.4%"></div></div><span class="bar-value">90</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:13.8%"></div></div><span class="bar-value">86</span></div></div>
+<h4>noise_sensitivity (평균 3.37, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">303</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:79.9%"></div></div><span class="bar-value">242</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:31.4%"></div></div><span class="bar-value">95</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:26.7%"></div></div><span class="bar-value">81</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:26.4%"></div></div><span class="bar-value">80</span></div></div>
+<h4>desired_intimacy (평균 2.64, 범위 1~5)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">205</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:98.0%"></div></div><span class="bar-value">201</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:89.3%"></div></div><span class="bar-value">183</span></div><div class="bar-row"><span class="bar-label">5</span><div class="bar-track"><div class="bar-fill" style="width:55.1%"></div></div><span class="bar-value">113</span></div><div class="bar-row"><span class="bar-label">4</span><div class="bar-track"><div class="bar-fill" style="width:48.3%"></div></div><span class="bar-value">99</span></div></div>
+<h4>meal_together (평균 1.89, 범위 1~3)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">541</span></div><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:32.0%"></div></div><span class="bar-value">173</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:16.1%"></div></div><span class="bar-value">87</span></div></div>
+<h4>exercise_together (평균 1.34, 범위 1~3)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">615</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:15.6%"></div></div><span class="bar-value">96</span></div><div class="bar-row"><span class="bar-label">3</span><div class="bar-track"><div class="bar-fill" style="width:14.6%"></div></div><span class="bar-value">90</span></div></div>
+<h4>friend_invite (평균 0.81, 범위 0~2)</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">1</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">350</span></div><div class="bar-row"><span class="bar-label">0</span><div class="bar-track"><div class="bar-fill" style="width:85.7%"></div></div><span class="bar-value">300</span></div><div class="bar-row"><span class="bar-label">2</span><div class="bar-track"><div class="bar-fill" style="width:43.1%"></div></div><span class="bar-value">151</span></div></div>
+<h4>불리언 필드</h4><div class='bool-grid'>
+<div class="bool-stat"><span class="bool-title">perfume</span><span class="bool-true">O 1 (0.1%)</span><span class="bool-false">X 800</span></div>
+<div class="bool-stat"><span class="bool-title">drunk_habit</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">speaker_use</span><span class="bool-true">O 156 (19.5%)</span><span class="bool-false">X 645</span></div>
+<div class="bool-stat"><span class="bool-title">exercise</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">sleep_habit</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">sleep_light</span><span class="bool-true">O 208 (26.0%)</span><span class="bool-false">X 593</span></div>
+<div class="bool-stat"><span class="bool-title">snoring</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">hairdryer_in_bathroom</span><span class="bool-true">O 801 (100.0%)</span><span class="bool-false">X 0</span></div>
+<div class="bool-stat"><span class="bool-title">toilet_paper_share</span><span class="bool-true">O 619 (77.3%)</span><span class="bool-false">X 182</span></div>
+<div class="bool-stat"><span class="bool-title">indoor_eating</span><span class="bool-true">O 158 (19.7%)</span><span class="bool-false">X 643</span></div>
+<div class="bool-stat"><span class="bool-title">smoking</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">indoor_call</span><span class="bool-true">O 0 (0.0%)</span><span class="bool-false">X 801</span></div>
+<div class="bool-stat"><span class="bool-title">drying_rack</span><span class="bool-true">O 801 (100.0%)</span><span class="bool-false">X 0</span></div>
+<div class="bool-stat"><span class="bool-title">fridge_use</span><span class="bool-true">O 596 (74.4%)</span><span class="bool-false">X 205</span></div>
+<div class="bool-stat"><span class="bool-title">study_in_room</span><span class="bool-true">O 144 (18.0%)</span><span class="bool-false">X 657</span></div>
+</div>
+<h3>매칭 풀 (총 5건)</h3>
+<h4>티어 분포</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">70-80</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">5</span></div></div>
+<h3>매칭 세션 (총 1건)</h3>
+<h4>상태 분포</h4><div class="bar-chart"><div class="bar-row"><span class="bar-label">active</span><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><span class="bar-value">1</span></div></div>
+<h3>채팅 (메시지 7건, 스레드 1개)</h3>
+<h2 id="schools">schools.db (학교 DB)</h2>
+<h3>테이블 행 수</h3>
+<p><strong>schools:</strong> 1</p>
+<p><strong>dormitories:</strong> 4</p>
+<p><strong>colleges:</strong> 8</p>
+<p><strong>departments:</strong> 27</p>
+<p><strong>dorm_room_types:</strong> 10</p>
+<h3>학교 정보</h3>
+<pre class="json-preview">[
+  {
+    "id": 1,
+    "name": "고려대학교",
+    "recruitment_start": null,
+    "recruitment_end": null,
+    "pre_matching_start": "2026-06-18",
+    "pre_matching_end": "2026-07-01",
+    "roommate_apply_start": "2026-07-10",
+    "roommate_apply_end": "2026-07-20",
+    "room_life_start": "2026-07-09",
+    "room_life_end": "2026-07-20",
+    "matching_enabled": 1
+  }
+]</pre>
+<h3>기숙사 정보</h3>
+<pre class="json-preview">[
+  {
+    "id": 1,
+    "school_id": 1,
+    "name": "자유관",
+    "gender": "male"
+  },
+  {
+    "id": 2,
+    "school_id": 1,
+    "name": "미래관",
+    "gender": "coed"
+  },
+  {
+    "id": 3,
+    "school_id": 1,
+    "name": "진리관",
+    "gender": "coed"
+  },
+  {
+    "id": 4,
+    "school_id": 1,
+    "name": "정의관",
+    "gender": "female"
+  }
+]</pre>
+<h3>방 유형 정보</h3>
+<pre class="json-preview">[
+  {
+    "id": 161,
+    "dorm_id": 2,
+    "capacity": 2,
+    "is_enabled": 1
+  },
+  {
+    "id": 162,
+    "dorm_id": 2,
+    "capacity": 3,
+    "is_enabled": 1
+  },
+  {
+    "id": 163,
+    "dorm_id": 2,
+    "capacity": 4,
+    "is_enabled": 1
+  },
+  {
+    "id": 164,
+    "dorm_id": 1,
+    "capacity": 2,
+    "is_enabled": 1
+  },
+  {
+    "id": 165,
+    "dorm_id": 1,
+    "capacity": 4,
+    "is_enabled": 1
+  },
+  {
+    "id": 166,
+    "dorm_id": 4,
+    "capacity": 2,
+    "is_enabled": 1
+  },
+  {
+    "id": 167,
+    "dorm_id": 4,
+    "capacity": 4,
+    "is_enabled": 1
+  },
+  {
+    "id": 168,
+    "dorm_id": 3,
+    "capacity": 2,
+    "is_enabled": 1
+  },
+  {
+    "id": 169,
+    "dorm_id": 3,
+    "capacity": 3,
+    "is_enabled": 1
+  },
+  {
+    "id": 170,
+    "dorm_id": 3,
+    "capacity": 4,
+    "is_enabled": 1
+  }
+]</pre>
+<h2 id="sim">roommates.db (시뮬레이션 DB)</h2>
+</body>
+</html>

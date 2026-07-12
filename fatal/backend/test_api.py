@@ -26,8 +26,8 @@ def get(path, token=None):
     return client.get(path, headers=h)
 
 # 1. register
-r = post("/api/auth/register", {"login_id": "testuser", "password": "123456", "name": "테스트", "student_id": "20230001"})
-assert r.status_code == 201, f"register failed: {r.data}"
+r = post("/api/auth/register", {"login_id": "testuser", "password": "123456", "name": "테스트", "student_id": "20230001", "birth_year": 2000, "gender": "male", "is_enrolled": False})
+assert r.status_code == 201, f"register failed: {r.status_code} {r.data}"
 body = r.get_json()
 print("register:", body)
 
@@ -101,8 +101,8 @@ assert r.status_code == 200
 print("persona:", r.get_json())
 
 # 7. match/top (needs at least 2 profiles, so we create another)
-r2 = post("/api/auth/register", {"login_id": "test2", "password": "123456", "name": "테스트2", "student_id": "20230002"})
-assert r2.status_code == 201
+r2 = post("/api/auth/register", {"login_id": "test2", "password": "123456", "name": "테스트2", "student_id": "20230002", "birth_year": 2001, "gender": "male", "is_enrolled": False})
+assert r2.status_code == 201, f"second register failed: {r2.status_code} {r2.data}"
 r2 = post("/api/auth/login", {"login_id": "test2", "password": "123456"})
 token2 = r2.get_json()["token"]
 profile_data2 = profile_data.copy()

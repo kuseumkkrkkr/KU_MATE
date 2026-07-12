@@ -21,6 +21,7 @@ class User:
     department: str = ""         # 학과
     region_name: str = ""        # 지역명
     gender: str = ""             # male | female
+    is_suspended: int = 0        # 1=이용 정지
 
 
 @dataclass
@@ -46,6 +47,15 @@ class RoommateProfile:
     hope_halls: List[str] = field(default_factory=list)  # max 2 in preliminary
     accepted_hall: str = ''                  # 1 in main phase
     room_capacity: int = 2                   # 2, 3, or 4
+    preferred_room_type_ids: List[int] = field(default_factory=list)
+    fixed_room_type_id: int = 0
+    interest_room_type_ids: List[int] = field(default_factory=list)
+    fixed_interest_room_type_id: int = 0
+    pre_change_count: int = 0
+    apply_change_count: int = 0
+    pre_last_changed_at: str = ""
+    apply_last_changed_at: str = ""
+    hall_confirmed_at: str = ""
     non_negotiable_items: List[str] = field(default_factory=list)
     non_negotiable_weights: List[int] = field(default_factory=list)
 
@@ -103,21 +113,20 @@ def _circular_distance(a: int, b: int, period: int = 24) -> float:
 
 
 def classify_persona(p: RoommateProfile) -> str:
-    """Classify profile into lightweight persona buckets."""
     scores = {
-        "study_focused": 0,
-        "sensitive": 0,
-        "night_owl": 0,
-        "social": 0,
+        "독서실형": 0,
+        "수면민감형": 0,
+        "야행성게이머형": 0,
+        "공동체형": 0,
     }
     if p.study_in_room:
-        scores["study_focused"] += 2
+        scores["독서실형"] += 2
     if p.noise_sensitivity >= 4 or p.indoor_scent_sensitivity >= 4:
-        scores["sensitive"] += 2
+        scores["수면민감형"] += 2
     if p.bedtime >= 1 or p.gaming_hours_per_week >= 15:
-        scores["night_owl"] += 2
+        scores["야행성게이머형"] += 2
     if p.desired_intimacy >= 4 or p.friend_invite >= 1:
-        scores["social"] += 2
+        scores["공동체형"] += 2
     return max(scores, key=scores.get)
 
 
@@ -190,5 +199,4 @@ def profile_from_json(s: str) -> RoommateProfile:
 
 def profile_to_dict(p: RoommateProfile) -> dict:
     return asdict(p)
-
 

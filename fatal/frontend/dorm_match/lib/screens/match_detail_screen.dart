@@ -265,4 +265,5 @@ class MatchDetailScreen extends StatelessWidget {
     if (uid.isEmpty) return [];
     return [uid];
   }
+
 }

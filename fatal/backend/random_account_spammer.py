@@ -3,7 +3,6 @@
 import argparse
 import json
 import random
-import string
 import sys
 import time
 from dataclasses import dataclass
@@ -24,6 +23,7 @@ KOREAN_GIVEN_NAMES = [
 REGIONS = [
     "서울", "경기", "인천", "부산", "대구", "광주", "대전", "울산", "세종", "강원", "제주",
 ]
+DEFAULT_PASSWORD = "111111"
 
 
 @dataclass
@@ -87,11 +87,6 @@ def random_student_id() -> str:
     year = random.randint(2019, 2026)
     serial = random.randint(100000, 999999)
     return f"{year}{serial}"
-
-
-def random_password(length: int = 12) -> str:
-    chars = string.ascii_letters + string.digits
-    return "".join(random.choices(chars, k=length))
 
 
 def build_school_pool(api: ApiClient) -> list[SchoolInfo]:
@@ -166,7 +161,7 @@ def create_random_account(api: ApiClient, school_pool: list[SchoolInfo], create_
     school = random.choice(school_pool) if enrolled else None
 
     login_id = random_login_id()
-    password = random_password()
+    password = DEFAULT_PASSWORD
     student_id = random_student_id() if enrolled else ""
     payload = {
         "login_id": login_id,
@@ -195,6 +190,25 @@ def create_random_account(api: ApiClient, school_pool: list[SchoolInfo], create_
         p_status, p_body = api.request("POST", "/api/profile", payload=profile_payload, token=token)
         if p_status != 200:
             print(f"[warn] profile={p_status} uid={user.get('uid')} body={p_body}")
+        else:
+            # Keep match pool eligible: set at least one interest room type.
+            opt_status, opt_body = api.request("GET", "/api/matching/options", token=token)
+            if opt_status == 200:
+                visible_room_types = list((opt_body or {}).get("visible_room_types") or [])
+                if visible_room_types:
+                    room_type_id = int(visible_room_types[0]["id"])
+                    ir_status, ir_body = api.request(
+                        "PUT",
+                        "/api/profile/interest-rooms",
+                        payload={"interest_room_type_ids": [room_type_id]},
+                        token=token,
+                    )
+                    if ir_status != 200:
+                        print(f"[warn] interest-rooms={ir_status} uid={user.get('uid')} body={ir_body}")
+                else:
+                    print(f"[warn] no visible_room_types uid={user.get('uid')}")
+            else:
+                print(f"[warn] matching/options={opt_status} uid={user.get('uid')} body={opt_body}")
 
     print(
         f"[ok] uid={user.get('uid')} login_id={login_id} "

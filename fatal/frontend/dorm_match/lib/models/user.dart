@@ -10,6 +10,8 @@ class User {
   String regionName;
   String gender;
   bool isEnrolled;
+  bool hasActiveLifeRoom;
+  String? lifeRoomUid;
 
   User({
     required this.userUid,
@@ -23,6 +25,8 @@ class User {
     this.regionName = '',
     this.gender = '',
     this.isEnrolled = true,
+    this.hasActiveLifeRoom = false,
+    this.lifeRoomUid,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,8 @@ class User {
       regionName: json['region_name'] ?? '',
       gender: json['gender'] ?? '',
       isEnrolled: json['is_enrolled'] == 1 || json['is_enrolled'] == true,
+      hasActiveLifeRoom: json['has_active_life_room'] == true,
+      lifeRoomUid: json['life_room_uid'] as String?,
     );
   }
 
@@ -54,6 +60,8 @@ class User {
       'region_name': regionName,
       'gender': gender,
       'is_enrolled': isEnrolled,
+      'has_active_life_room': hasActiveLifeRoom,
+      'life_room_uid': lifeRoomUid,
     };
   }
 }

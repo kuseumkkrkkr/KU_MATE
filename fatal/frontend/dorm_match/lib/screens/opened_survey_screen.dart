@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'public_profile_screen.dart';
@@ -127,7 +127,7 @@ class OpenedSurveyScreen extends StatelessWidget {
           ],
           const SizedBox(height: 6),
           Text(
-            '대상 UID: $otherUid',
+            '상대 UID: $otherUid',
             style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
           ),
         ],

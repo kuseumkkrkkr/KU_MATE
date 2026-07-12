@@ -1,16 +1,39 @@
-# dorm_match
+# Roomantic
 
-A new Flutter project.
+## 소개
+이 프로젝트는 학생의 생활습관과 성향을 바탕으로 룸메이트를 추천하고 매칭하는 Flutter 앱입니다.
+백엔드 Flask 서버와 연동해 회원가입, 로그인, 프로필 작성, 페르소나 분석, 매칭, 채팅, 공지 확인, 관리자 설정까지 한 흐름으로 제공합니다.
 
-## Getting Started
+## 주요 기능
+- 회원가입 및 로그인, JWT 기반 인증
+- 생활습관 설문과 프로필 저장, 페르소나 분석
+- 학교별 기숙사 정보 확인 및 매칭 가능 기간 안내
+- 예비 매칭과 본 매칭을 구분한 기숙사 선호도 선택
+- 매칭 풀 조회, 매칭 세션 진입, 확정, 보류, 취소, 리매치, 쿨다운 관리
+- 매칭된 사용자 간 실시간 채팅과 읽음 처리
+- 공지사항 조회 및 관리자용 공지 등록/수정/삭제
+- 학교 추가, 기숙사 편집, 단과대학·학과 편집, 모집 일정, 매칭 상태 관리
+- 매칭 이력, 활성 세션, 통계 및 공개 프로필 조회
 
-This project is a starting point for a Flutter application.
+## 사용 방법
+1. 저장소를 다운로드하거나 클론합니다.
+2. 백엔드 서버를 실행합니다.
+	- `cd backend`
+	- `python -m venv .venv`
+	- `.venv\Scripts\activate`
+	- `pip install -r requirements.txt`
+	- `python app.py`
+3. Flutter 앱을 실행합니다.
+	- `cd frontend/dorm_match`
+	- `flutter pub get`
+	- `flutter run`
+4. 앱에서 회원가입 또는 로그인 후 프로필과 설문을 작성하고, 홈 화면에서 매칭을 시작합니다.
+5. 매칭이 완료되면 채팅 탭에서 대화를 이어가고, 필요하면 공지와 관리자 설정을 확인합니다.
 
-A few resources to get you started if this is your first Flutter project:
+## 실행 참고
+- 백엔드 API는 기본적으로 `http://localhost:5000/api` 를 사용합니다.
+- Android 에뮬레이터에서는 `http://10.0.2.2:5000/api` 로 연결됩니다.
+- Flutter 앱에서 매칭 기능을 사용하려면 백엔드 서버가 먼저 실행되어 있어야 합니다.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 라이선스
+MIT License

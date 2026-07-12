@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../services/chat_local_store.dart';
+import '../screens/life_room_screen.dart';
 
 class MatchController extends GetxController {
   final _api = ApiService();
@@ -27,6 +30,7 @@ class MatchController extends GetxController {
   final Map<String, String> _threadOldestCreatedAt = {};
   final Map<String, String> _threadOldestUid = {};
   final Map<String, List<Map<String, dynamic>>> _threadSendQueue = {};
+  final Map<String, int> _threadSnapshotVersion = {};
   final Set<String> _threadQueueProcessing = <String>{};
   static const Duration _sendFailTimeout = Duration(minutes: 1);
   static const Duration _minSendingVisible = Duration(milliseconds: 180);
@@ -60,14 +64,34 @@ class MatchController extends GetxController {
 
   Future<void> _bootstrap() async {
     await _loadMe();
-    await Future.wait([
-      fetchPool(),
-      fetchActiveSessions(),
-      fetchThreads(),
-      fetchCooldown(),
-    ]);
-    fetchLegacyMatches();
+    final hasProfile = await _hasSavedProfile();
+    if (!hasProfile) {
+      return;
+    }
+    await _loadMatchStartCache();
+    await Future.wait([fetchActiveSessions(), fetchThreads(), fetchCooldown()]);
+    await fetchPool();
+    if (!hasStartedSession) {
+      if (poolCandidates.isEmpty && !await _isPoolGenerated()) {
+        await refreshPool();
+      }
+    }
     _startChatStream();
+  }
+
+  Future<bool> _hasSavedProfile() async {
+    try {
+      final data = await _api.getProfile();
+      if (data['exists'] == false) {
+        return false;
+      }
+      if (data.containsKey('error')) {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _loadMe() async {
@@ -85,6 +109,143 @@ class MatchController extends GetxController {
       _loadMeFuture = null;
     });
     await _loadMeFuture;
+  }
+
+  String? _cacheKey(String suffix) {
+    final uid = (_currentUserUid ?? '').trim();
+    if (uid.isEmpty) return null;
+    return 'match_start_cache_${uid}_$suffix';
+  }
+
+  String? _poolGeneratedKey() {
+    final uid = (_currentUserUid ?? '').trim();
+    if (uid.isEmpty) return null;
+    return 'match_pool_generated_$uid';
+  }
+
+  Future<bool> _isPoolGenerated() async {
+    final key = _poolGeneratedKey();
+    if (key == null) return false;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      return sp.getBool(key) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _markPoolGenerated() async {
+    final key = _poolGeneratedKey();
+    if (key == null) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setBool(key, true);
+    } catch (_) {}
+  }
+
+  Future<void> _loadMatchStartCache() async {
+    await _ensureCurrentUserLoaded();
+    final poolKey = _cacheKey('pool');
+    final sessionKey = _cacheKey('sessions');
+    final threadKey = _cacheKey('threads');
+    final cooldownKey = _cacheKey('cooldown_until');
+    if (poolKey == null ||
+        sessionKey == null ||
+        threadKey == null ||
+        cooldownKey == null) {
+      return;
+    }
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final poolRaw = sp.getString(poolKey);
+      final sessionRaw = sp.getString(sessionKey);
+      final threadRaw = sp.getString(threadKey);
+      final cooldownRaw = sp.getString(cooldownKey);
+
+      if (poolRaw != null && poolRaw.isNotEmpty) {
+        final decoded = jsonDecode(poolRaw);
+        if (decoded is List) {
+          poolCandidates.value = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      if (sessionRaw != null && sessionRaw.isNotEmpty) {
+        final decoded = jsonDecode(sessionRaw);
+        if (decoded is List) {
+          activeSessions.value = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      if (threadRaw != null && threadRaw.isNotEmpty) {
+        final decoded = jsonDecode(threadRaw);
+        if (decoded is List) {
+          chatThreads.value = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      cooldownUntil.value = (cooldownRaw == null || cooldownRaw.isEmpty)
+          ? null
+          : DateTime.tryParse(cooldownRaw);
+    } catch (_) {}
+  }
+
+  Future<void> _saveListCache(
+    String suffix,
+    List<Map<String, dynamic>> value,
+  ) async {
+    final key = _cacheKey(suffix);
+    if (key == null) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(key, jsonEncode(value));
+    } catch (_) {}
+  }
+
+  Future<void> _saveCooldownCache(DateTime? value) async {
+    final key = _cacheKey('cooldown_until');
+    if (key == null) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (value == null) {
+        await sp.remove(key);
+      } else {
+        await sp.setString(key, value.toIso8601String());
+      }
+    } catch (_) {}
+  }
+
+  Future<void> loadMatchStartOnView() async {
+    await _ensureCurrentUserLoaded();
+    final hasProfile = await _hasSavedProfile();
+    if (!hasProfile) {
+      poolCandidates.clear();
+      activeSessions.clear();
+      cooldownUntil.value = null;
+      return;
+    }
+    await _loadMatchStartCache();
+    isLoading.value = true;
+    try {
+      await Future.wait([
+        fetchActiveSessions(),
+        fetchThreads(),
+        fetchCooldown(),
+      ]);
+      await fetchPool();
+      if (!hasStartedSession) {
+        if (poolCandidates.isEmpty && !await _isPoolGenerated()) {
+          await refreshPool();
+        }
+      }
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   void _startChatStream() {
@@ -136,6 +297,11 @@ class MatchController extends GetxController {
         _applyThreadState(payload);
         break;
       case 'match_confirmed':
+        fetchActiveSessions();
+        fetchThreads();
+        fetchCooldown();
+        _tryNavigateToLifeRoom();
+        break;
       case 'rematch_notice':
         fetchActiveSessions();
         fetchThreads();
@@ -201,6 +367,7 @@ class MatchController extends GetxController {
       threadOlderLoading.refresh();
       _threadOldestCreatedAt.remove(threadId);
       _threadOldestUid.remove(threadId);
+      _threadSnapshotVersion.remove(threadId);
       chatThreads.removeWhere(
         (t) => t['thread_id'] == threadId || t['id'] == threadId,
       );
@@ -275,10 +442,10 @@ class MatchController extends GetxController {
   String _closedReasonLabel(String? reason) {
     if (reason == 'already_matched') return '사용자가 이미 매칭됨';
     if (reason == 'no_response') return '2일 무응답으로 종료됨';
-    if (reason == 'cancelled') return '梨꾪똿??痍⑥냼?섏뿀?듬땲??';
+    if (reason == 'cancelled') return '매칭이 취소되어 종료됨';
     if (reason == 'rematch') return '재매칭으로 종료됨';
-    if (reason == 'left') return '梨꾪똿諛⑹뿉???섍컮?듬땲??';
-    return '梨꾪똿??醫낅즺?섏뿀?듬땲??';
+    if (reason == 'left') return '상대가 나가서 종료됨';
+    return '매칭이 종료됨';
   }
 
   // Legacy
@@ -302,23 +469,30 @@ class MatchController extends GetxController {
       final data = res['candidates'] ?? res['pool'];
       if (data != null) {
         poolCandidates.value = List<Map<String, dynamic>>.from(data);
+        unawaited(_saveListCache('pool', poolCandidates.toList()));
       }
     } catch (_) {}
   }
 
   Future<bool> refreshPool() async {
+    if (hasStartedSession) {
+      return false;
+    }
     isLoading.value = true;
     try {
       final res = await _api.refreshPool();
       final data = res['candidates'] ?? res['pool'];
       if (data != null) {
         poolCandidates.value = List<Map<String, dynamic>>.from(data);
+        unawaited(_saveListCache('pool', poolCandidates.toList()));
+        await _markPoolGenerated();
         poolRefreshCount.value++;
         return poolCandidates.isNotEmpty;
       }
+      await _markPoolGenerated();
       return false;
     } catch (e) {
-      Get.snackbar('??살첒', '?? ??덉쨮?⑥쥙臾???쎈솭: $e');
+      Get.snackbar('오류', '매칭 후보를 불러오지 못했습니다: $e');
       return false;
     } finally {
       isLoading.value = false;
@@ -329,8 +503,9 @@ class MatchController extends GetxController {
     try {
       final sessions = await _api.getActiveSessions();
       activeSessions.value = List<Map<String, dynamic>>.from(sessions);
+      unawaited(_saveListCache('sessions', activeSessions.toList()));
     } catch (_) {
-      activeSessions.clear();
+      // Keep cached sessions when network fails.
     }
   }
 
@@ -342,7 +517,18 @@ class MatchController extends GetxController {
       await fetchThreads();
       return res['session_id']?.toString();
     } catch (e) {
-      Get.snackbar('??살첒', '?紐꾨???놁삢 ??쎈솭: $e');
+      final raw = e.toString();
+      String message;
+      if (raw.contains('in_progress')) {
+        message = '이미 진행 중인 채팅이 있습니다. 채팅 목록에서 이어서 대화해주세요.';
+      } else if (raw.contains('on_hold')) {
+        message = '보류 중인 채팅이 있습니다. 기존 채팅을 확인해주세요.';
+      } else if (raw.contains('pair_blocked')) {
+        message = '차단된 상대와는 채팅을 시작할 수 없습니다.';
+      } else {
+        message = '세션 진입에 실패했습니다: $e';
+      }
+      Get.snackbar('오류', message);
       return null;
     } finally {
       isLoading.value = false;
@@ -358,13 +544,13 @@ class MatchController extends GetxController {
       await fetchCooldown();
       final status = res['status']?.toString() ?? 'waiting';
       if (status == 'confirmed') {
-        Get.snackbar('筌띲끉臾??袁⑥┷', '筌띲끉臾???類ㅼ젟??뤿???щ빍??');
+        Get.snackbar('완료', '매칭이 확정되었습니다.');
       } else if (status == 'waiting_delegate') {
         Get.snackbar('대기 중', '상대 사용자의 확인을 기다리고 있습니다.');
       }
       return true;
     } catch (e) {
-      Get.snackbar('??살첒', '筌띲끉臾??類ㅼ젟 ??쎈솭: $e');
+      Get.snackbar('오류', '매칭 확정에 실패했습니다: $e');
       return false;
     } finally {
       isLoading.value = false;
@@ -379,7 +565,7 @@ class MatchController extends GetxController {
       await fetchThreads();
       return true;
     } catch (e) {
-      Get.snackbar('??살첒', '?紐꾨??띯뫁????쎈솭: $e');
+      Get.snackbar('오류', '세션 취소에 실패했습니다: $e');
       return false;
     } finally {
       isLoading.value = false;
@@ -391,14 +577,15 @@ class MatchController extends GetxController {
       chatThreads.value = List<Map<String, dynamic>>.from(
         await _api.getThreads(),
       );
+      unawaited(_saveListCache('threads', chatThreads.toList()));
     } catch (_) {
-      chatThreads.clear();
+      // Keep cached threads when network fails.
     }
   }
 
   Future<bool> sendThreadMessage(String threadId, String text) async {
     if (isThreadClosed(threadId)) {
-      Get.snackbar('??', '??? ????? ???? ?? ? ????.');
+      Get.snackbar('안내', '종료된 채팅방에는 메시지를 보낼 수 없습니다.');
       return false;
     }
     final now = DateTime.now();
@@ -572,9 +759,9 @@ class MatchController extends GetxController {
     } catch (_) {}
   }
 
-  Future<bool> leaveThread(String threadId) async {
+  Future<bool> leaveThread(String threadId, String reason) async {
     try {
-      await _api.leaveThread(threadId);
+      await _api.leaveThread(threadId, reason);
       await _removeStoredThreadMessages(threadId);
       threadMessages.remove(threadId);
       threadMessages.refresh();
@@ -584,13 +771,16 @@ class MatchController extends GetxController {
       threadOlderLoading.refresh();
       _threadOldestCreatedAt.remove(threadId);
       _threadOldestUid.remove(threadId);
-      chatThreads.removeWhere(
-        (t) => t['thread_id'] == threadId || t['id'] == threadId,
+      _threadSnapshotVersion.remove(threadId);
+      // Keep closed thread metadata so match cards can render rejected state.
+      _upsertThread(
+        threadId: threadId,
+        status: 'closed',
+        closedReason: 'rejected',
       );
-      chatThreads.refresh();
       return true;
     } catch (e) {
-      Get.snackbar('??살첒', '筌?쑵?욤쳸????疫???쎈솭: $e');
+      Get.snackbar('오류', '채팅방 나가기에 실패했습니다: $e');
       return false;
     }
   }
@@ -604,8 +794,9 @@ class MatchController extends GetxController {
       } else {
         cooldownUntil.value = null;
       }
+      unawaited(_saveCooldownCache(cooldownUntil.value));
     } catch (_) {
-      cooldownUntil.value = null;
+      // Keep cached cooldown when network fails.
     }
   }
 
@@ -632,6 +823,9 @@ class MatchController extends GetxController {
       (t) => (t['status']?.toString() ?? 'open') != 'open',
     );
   }
+
+  bool get hasStartedSession =>
+      activeSessions.isNotEmpty || chatThreads.isNotEmpty;
 
   Map<String, dynamic>? getPoolCandidateByUid(String uid) {
     return poolCandidates.firstWhereOrNull(
@@ -772,7 +966,9 @@ class MatchController extends GetxController {
     final current = List<Map<String, dynamic>>.from(
       threadMessages[threadId] ?? const [],
     );
-    final pendingIndex = current.indexWhere((m) => m['uid']?.toString() == localUid);
+    final pendingIndex = current.indexWhere(
+      (m) => m['uid']?.toString() == localUid,
+    );
     if (pendingIndex >= 0) {
       final pendingMsg = current[pendingIndex];
       final queuedAt = DateTime.tryParse(
@@ -886,8 +1082,13 @@ class MatchController extends GetxController {
     String threadId,
     List<Map<String, dynamic>> messages,
   ) async {
+    final nextVersion = (_threadSnapshotVersion[threadId] ?? 0) + 1;
+    _threadSnapshotVersion[threadId] = nextVersion;
     await _saveStoredThreadMessages(threadId, messages);
     final reloaded = await _loadStoredThreadMessages(threadId);
+    if (_threadSnapshotVersion[threadId] != nextVersion) {
+      return;
+    }
     final current = List<Map<String, dynamic>>.from(
       threadMessages[threadId] ?? const [],
     );
@@ -948,6 +1149,14 @@ class MatchController extends GetxController {
       }
     }
     threadMessages.refresh();
+  }
+  Future<void> _tryNavigateToLifeRoom() async {
+    try {
+      final life = await _api.getCurrentLifeRoom();
+      if (life['life_room'] != null) {
+        Get.to(() => const LifeRoomScreen());
+      }
+    } catch (_) {}
   }
 }
 

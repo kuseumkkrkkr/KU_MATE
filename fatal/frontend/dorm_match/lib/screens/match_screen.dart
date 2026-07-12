@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/match_controller.dart';
 import '../utils/match_ui_helper.dart';
 import 'chat_threads_screen.dart';
+import 'match_session_chats_screen.dart';
 import 'match_detail_screen.dart';
 
 class MatchScreen extends StatefulWidget {
@@ -13,8 +14,90 @@ class MatchScreen extends StatefulWidget {
   State<MatchScreen> createState() => _MatchScreenState();
 }
 
-class _MatchScreenState extends State<MatchScreen> {
+class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final _matchCtrl = Get.find<MatchController>();
+  int _refreshToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshOnEntryWithRetry();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshOnEntryWithRetry();
+    }
+  }
+
+  Future<void> _refreshOnEntryWithRetry() async {
+    final token = ++_refreshToken;
+    await _matchCtrl.loadMatchStartOnView();
+    if (!mounted || token != _refreshToken) return;
+
+    if (_matchCtrl.hasStartedSession || _matchCtrl.poolCandidates.isNotEmpty) {
+      return;
+    }
+
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      if (!mounted || token != _refreshToken) return;
+
+      await _matchCtrl.loadMatchStartOnView();
+      if (!mounted || token != _refreshToken) return;
+      if (_matchCtrl.hasStartedSession || _matchCtrl.poolCandidates.isNotEmpty) {
+        return;
+      }
+    }
+
+    if (mounted && token == _refreshToken) {
+      Get.snackbar('안내', '매칭 후보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  }
+
+  Future<void> _openCurrentMatchChats() async {
+    await Future.wait([
+      _matchCtrl.fetchActiveSessions(),
+      _matchCtrl.fetchThreads(),
+    ]);
+    final sessions = List<Map<String, dynamic>>.from(_matchCtrl.activeSessions);
+    if (sessions.isEmpty && _matchCtrl.chatThreads.isEmpty) {
+      Get.snackbar('안내', '현재 진행 중인 매칭 채팅이 없습니다.');
+      return;
+    }
+    sessions.sort((a, b) {
+      final ad =
+          DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bd =
+          DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bd.compareTo(ad);
+    });
+    Map<String, dynamic>? target;
+    for (final s in sessions) {
+      if ((s['status']?.toString() ?? '') == 'active') {
+        target = s;
+        break;
+      }
+    }
+    target ??= sessions.isNotEmpty ? sessions.first : null;
+    final sessionId =
+        target?['uid']?.toString() ?? target?['session_id']?.toString() ?? '';
+    if (sessionId.isEmpty) {
+      Get.to(() => const ChatThreadsScreen());
+      return;
+    }
+    Get.to(() => MatchSessionChatsScreen(sessionId: sessionId));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,64 +106,43 @@ class _MatchScreenState extends State<MatchScreen> {
         title: const Text('매칭 시작'),
         actions: [
           IconButton(
-            tooltip: '채팅 목록',
+            tooltip: '현재 매칭 채팅',
             icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () => Get.to(() => const ChatThreadsScreen()),
-          ),
-          IconButton(
-            tooltip: '새로고침',
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              await _matchCtrl.refreshPool();
-              await _matchCtrl.fetchThreads();
-              await _matchCtrl.fetchActiveSessions();
-            },
+            onPressed: _openCurrentMatchChats,
           ),
         ],
       ),
-      body: Obx(() {
-        return RefreshIndicator(
-          onRefresh: () async {
-            await _matchCtrl.refreshPool();
-            await _matchCtrl.fetchThreads();
-            await _matchCtrl.fetchActiveSessions();
-            await _matchCtrl.fetchCooldown();
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _statusPanel(),
-              const SizedBox(height: 14),
-              if (_matchCtrl.isInCooldown) _cooldownPanel(),
-              if (_matchCtrl.isInCooldown) const SizedBox(height: 14),
-              if (_matchCtrl.isLoading.value &&
-                  _matchCtrl.poolCandidates.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_matchCtrl.poolCandidates.isEmpty)
-                _emptyPoolState()
-              else
-                ..._matchCtrl.poolCandidates.map((c) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _poolCard(c),
-                  );
-                }),
-            ],
-          ),
-        );
-      }),
+      body: Obx(
+        () => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _statusPanel(),
+            const SizedBox(height: 14),
+            if (_matchCtrl.isInCooldown) _cooldownPanel(),
+            if (_matchCtrl.isInCooldown) const SizedBox(height: 14),
+            if (_matchCtrl.isLoading.value &&
+                _matchCtrl.poolCandidates.isEmpty &&
+                !_matchCtrl.hasStartedSession)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_matchCtrl.poolCandidates.isEmpty)
+              _emptyPoolState()
+            else
+              ..._matchCtrl.poolCandidates.map(
+                (c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _poolCard(c),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _statusPanel() {
-    final openCount = _matchCtrl.chatThreads
-        .where((t) => (t['status']?.toString() ?? 'open') == 'open')
-        .length;
-    final closedCount = _matchCtrl.chatThreads.length - openCount;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -98,18 +160,20 @@ class _MatchScreenState extends State<MatchScreen> {
         spacing: 8,
         runSpacing: 8,
         children: [
-          _badge(
-            '진행 중 대화 $openCount개',
-            const Color(0xFFDCFCE7),
-            const Color(0xFF166534),
-          ),
-          _badge(
-            '종료된 대화 $closedCount개',
-            const Color(0xFFF3F4F6),
-            const Color(0xFF4B5563),
-          ),
+          if (_matchCtrl.hasStartedSession)
+            _badge(
+              '매칭 진행 중',
+              const Color(0xFFDBEAFE),
+              const Color(0xFF1D4ED8),
+            )
+          else
+            _badge(
+              '매칭 후보 확인',
+              const Color(0xFFF3F4F6),
+              const Color(0xFF4B5563),
+            ),
           if (_matchCtrl.canRematch)
-            _badge('재매칭 가능', const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
+            _badge('재매치 가능', const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
           if (_matchCtrl.isInCooldown)
             _badge(
               '쿨다운 진행 중',
@@ -155,8 +219,8 @@ class _MatchScreenState extends State<MatchScreen> {
           Expanded(
             child: Text(
               remainHours > 0
-                  ? '재시도 가능 시각: $retryAt (약 $remainHours시간 후)'
-                  : '재시도 가능 시각: $retryAt',
+                  ? '다시 매칭 가능 시간: $retryAt (약 $remainHours시간 후)'
+                  : '다시 매칭 가능 시간: $retryAt',
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF312E81),
@@ -183,11 +247,6 @@ class _MatchScreenState extends State<MatchScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            '아래로 당겨 새로고침해 주세요.',
-            style: TextStyle(color: Color(0xFF9CA3AF)),
-          ),
         ],
       ),
     );
@@ -205,9 +264,14 @@ class _MatchScreenState extends State<MatchScreen> {
         ? (item['display_name']?.toString() ?? '${memberNames.join(', ')}의 방')
         : (profile['name']?.toString() ?? '상대 사용자');
     final summary = MatchUiHelper.summaryFrom(item);
+    final status = _statusForCandidate(item);
 
     return GestureDetector(
-      onTap: () => Get.to(() => MatchDetailScreen(matchData: item)),
+      onTap: () async {
+        final opened = await _openThreadForCandidate(item);
+        if (opened || !mounted) return;
+        Get.to(() => MatchDetailScreen(matchData: item));
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -250,6 +314,8 @@ class _MatchScreenState extends State<MatchScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          _statusChip(status),
                           const SizedBox(width: 8),
                           _candidateTypeChip(isRoom),
                         ],
@@ -316,6 +382,172 @@ class _MatchScreenState extends State<MatchScreen> {
           fontSize: 11,
           color: isRoom ? const Color(0xFF1D4ED8) : const Color(0xFF4B5563),
           fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  _CandidateStatus _statusForCandidate(Map<String, dynamic> item) {
+    final targetUids = _candidateUidsFromItem(item);
+    if (targetUids.isEmpty) {
+      return const _CandidateStatus(
+        label: '대기',
+        fg: Color(0xFF4B5563),
+        bg: Color(0xFFF3F4F6),
+      );
+    }
+
+    final matchedThreads = _matchCtrl.chatThreads.where((t) {
+      final otherUid = t['other_uid']?.toString() ?? '';
+      return targetUids.contains(otherUid);
+    }).toList();
+    if (matchedThreads.isEmpty) {
+      return const _CandidateStatus(
+        label: '대기',
+        fg: Color(0xFF4B5563),
+        bg: Color(0xFFF3F4F6),
+      );
+    }
+
+    for (final t in matchedThreads) {
+      final reason = t['closed_reason']?.toString() ?? '';
+      if (reason == 'already_matched') {
+        return _CandidateStatus(
+          label: '매칭 완료',
+          fg: const Color(0xFF065F46),
+          bg: const Color(0xFFD1FAE5),
+          thread: t,
+        );
+      }
+    }
+
+    for (final t in matchedThreads) {
+      final status = t['status']?.toString() ?? 'open';
+      if (status == 'open') {
+        return _CandidateStatus(
+          label: '대화 중',
+          fg: const Color(0xFF166534),
+          bg: const Color(0xFFDCFCE7),
+          thread: t,
+        );
+      }
+    }
+
+    for (final t in matchedThreads) {
+      final reason = t['closed_reason']?.toString() ?? '';
+      if (reason == 'rejected') {
+        return _CandidateStatus(
+          label: '거절',
+          fg: const Color(0xFFB91C1C),
+          bg: const Color(0xFFFEE2E2),
+          thread: t,
+        );
+      }
+    }
+
+    final matchedSessionIds = matchedThreads
+        .map((t) => t['session_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    for (final s in _matchCtrl.activeSessions) {
+      final sid = s['uid']?.toString() ?? s['session_id']?.toString() ?? '';
+      if (sid.isEmpty || !matchedSessionIds.contains(sid)) {
+        continue;
+      }
+      final decisionA = s['user_decision']?.toString() ?? '';
+      final decisionB = s['candidate_decision']?.toString() ?? '';
+      if (decisionA == 'hold' || decisionB == 'hold') {
+        return const _CandidateStatus(
+          label: '보류',
+          fg: Color(0xFF92400E),
+          bg: Color(0xFFFEF3C7),
+        );
+      }
+    }
+
+    return const _CandidateStatus(
+      label: '대기',
+      fg: Color(0xFF4B5563),
+      bg: Color(0xFFF3F4F6),
+    );
+  }
+
+  Future<bool> _openThreadForCandidate(Map<String, dynamic> item) async {
+    final existing = _threadForCandidate(item);
+    final existingId = existing?['thread_id']?.toString() ?? '';
+    if (existingId.isNotEmpty) {
+      final other = existing?['other_user']?.toString() ?? '상대 사용자';
+      await Get.to(() => ChatRoomScreen(threadId: existingId, otherUser: other));
+      if (mounted) {
+        await _matchCtrl.loadMatchStartOnView();
+      }
+      return true;
+    }
+
+    final targetCandidateUids = _candidateUidsFromItem(item).toList();
+    if (targetCandidateUids.isNotEmpty) {
+      final sessionId = await _matchCtrl.enterSession(targetCandidateUids);
+      if (sessionId != null) {
+        await _matchCtrl.fetchThreads();
+        final created = _threadForCandidate(item);
+        final createdId = created?['thread_id']?.toString() ?? '';
+        if (createdId.isNotEmpty) {
+          final other = created?['other_user']?.toString() ?? '상대 사용자';
+          await Get.to(
+            () => ChatRoomScreen(threadId: createdId, otherUser: other),
+          );
+          if (mounted) {
+            await _matchCtrl.loadMatchStartOnView();
+          }
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Map<String, dynamic>? _threadForCandidate(Map<String, dynamic> item) {
+    final uids = _candidateUidsFromItem(item);
+    if (uids.isEmpty) return null;
+    // Only reuse open threads. Closed(rejected/expired/...) threads should not
+    // hijack card tap and block re-entry to detail flow.
+    for (final t in _matchCtrl.chatThreads) {
+      final status = t['status']?.toString() ?? 'open';
+      if (status != 'open') continue;
+      final otherUid = t['other_uid']?.toString() ?? '';
+      if (uids.contains(otherUid)) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  Set<String> _candidateUidsFromItem(Map<String, dynamic> item) {
+    final candidateType = item['candidate_type']?.toString() ?? 'individual';
+    final profile = (item['profile'] is Map<String, dynamic>)
+        ? item['profile'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final userUid = item['user_uid']?.toString() ?? profile['user_uid']?.toString() ?? '';
+    final candidateUids = List<String>.from(item['candidate_uids'] ?? const []);
+    return <String>{
+      if (candidateType == 'individual' && userUid.isNotEmpty) userUid,
+      ...candidateUids.where((e) => e.trim().isNotEmpty).map((e) => e.trim()),
+    };
+  }
+
+  Widget _statusChip(_CandidateStatus status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: status.bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(
+          fontSize: 11,
+          color: status.fg,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -388,3 +620,19 @@ class _MatchScreenState extends State<MatchScreen> {
     return '$month/$day $hour:$minute';
   }
 }
+
+class _CandidateStatus {
+  final String label;
+  final Color fg;
+  final Color bg;
+  final Map<String, dynamic>? thread;
+
+  const _CandidateStatus({
+    required this.label,
+    required this.fg,
+    required this.bg,
+    this.thread,
+  });
+}
+
+

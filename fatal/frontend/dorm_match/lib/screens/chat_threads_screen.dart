@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,26 +8,292 @@ import '../controllers/match_controller.dart';
 import '../services/api_service.dart';
 import 'opened_survey_screen.dart';
 
-class ChatThreadsScreen extends StatelessWidget {
+enum ChatSortMode { byMatch, byDate, byName }
+
+class ChatThreadsScreen extends StatefulWidget {
   const ChatThreadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final ctrl = Get.isRegistered<MatchController>()
-        ? Get.find<MatchController>()
-        : Get.put(MatchController());
+  State<ChatThreadsScreen> createState() => _ChatThreadsScreenState();
+}
 
+class _ChatThreadsScreenState extends State<ChatThreadsScreen> {
+  final ctrl = Get.isRegistered<MatchController>()
+      ? Get.find<MatchController>()
+      : Get.put(MatchController());
+  final _api = ApiService();
+  ChatSortMode _sortMode = ChatSortMode.byMatch;
+  final Map<String, int> _sessionOrder = {};
+  final Map<String, Map<String, dynamic>> _sessionMeta = {};
+
+  @override
+  void initState() {
+    super.initState();
+    ctrl.fetchThreads();
+    _loadSessionOrder();
+  }
+
+  Future<void> _loadSessionOrder() async {
+    try {
+      final rows = await _api.getSessionHistory();
+      final sessions = List<Map<String, dynamic>>.from(rows);
+      final order = <String, int>{};
+      final meta = <String, Map<String, dynamic>>{};
+      for (var i = 0; i < sessions.length; i++) {
+        final id = sessions[i]['session_id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          order[id] = i;
+          meta[id] = sessions[i];
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _sessionOrder
+            ..clear()
+            ..addAll(order);
+          _sessionMeta
+            ..clear()
+            ..addAll(meta);
+        });
+      }
+    } catch (_) {}
+  }
+
+  List<Map<String, dynamic>> _sortedThreads(List<Map<String, dynamic>> source) {
+    final list = List<Map<String, dynamic>>.from(source);
+    DateTime parseDate(Map<String, dynamic> t) {
+      return DateTime.tryParse(t['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    switch (_sortMode) {
+      case ChatSortMode.byDate:
+        list.sort((a, b) => parseDate(b).compareTo(parseDate(a)));
+        return list;
+      case ChatSortMode.byName:
+        list.sort((a, b) {
+          final an = (a['other_user']?.toString() ?? '').toLowerCase();
+          final bn = (b['other_user']?.toString() ?? '').toLowerCase();
+          final c = an.compareTo(bn);
+          if (c != 0) return c;
+          return parseDate(b).compareTo(parseDate(a));
+        });
+        return list;
+      case ChatSortMode.byMatch:
+        list.sort((a, b) {
+          final as = a['session_id']?.toString() ?? '';
+          final bs = b['session_id']?.toString() ?? '';
+          final ao = _sessionOrder[as] ?? 1 << 30;
+          final bo = _sessionOrder[bs] ?? 1 << 30;
+          if (ao != bo) return ao.compareTo(bo);
+          return parseDate(b).compareTo(parseDate(a));
+        });
+        return list;
+    }
+  }
+
+  List<Map<String, dynamic>> _buildListEntries(
+    List<Map<String, dynamic>> sorted,
+  ) {
+    if (_sortMode != ChatSortMode.byMatch) {
+      return sorted.map((t) => {'__type': 'thread', 'data': t}).toList();
+    }
+    final entries = <Map<String, dynamic>>[];
+    String lastSession = '';
+    for (final t in sorted) {
+      final sid = t['session_id']?.toString() ?? '';
+      if (sid != lastSession) {
+        entries.add({
+          '__type': 'divider',
+          'session_id': sid,
+          'label': _matchDividerLabel(sid),
+        });
+        lastSession = sid;
+      }
+      entries.add({'__type': 'thread', 'data': t});
+    }
+    return entries;
+  }
+
+  String _matchDividerLabel(String sessionId) {
+    final m = _sessionMeta[sessionId] ?? const <String, dynamic>{};
+    final kindRaw = m['match_kind']?.toString();
+    final dateRaw = m['created_at']?.toString() ?? '';
+    String kind;
+    switch (kindRaw) {
+      case 'one_room':
+        kind = '자취방';
+        break;
+      case 'share_house':
+        kind = '쉐어하우스';
+        break;
+      case 'dormitory':
+      default:
+        kind = '기숙사';
+        break;
+    }
+    final d = DateTime.tryParse(dateRaw);
+    final dateText = d == null
+        ? '-'
+        : '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+    return '$kind · $dateText';
+  }
+
+  String _sortLabel(ChatSortMode mode) {
+    switch (mode) {
+      case ChatSortMode.byMatch:
+        return '매칭순';
+      case ChatSortMode.byDate:
+        return '날짜순';
+      case ChatSortMode.byName:
+        return '이름순';
+    }
+  }
+
+  Widget _sortMenuRow(
+    String text, {
+    required bool selected,
+    bool topRounded = false,
+  }) {
+    return Container(
+      height: 56,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFFD4D4D8) : const Color(0xFFF3F4F6),
+        borderRadius: topRounded
+            ? const BorderRadius.vertical(top: Radius.circular(14))
+            : BorderRadius.zero,
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF1F2937),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('채팅')),
+      appBar: AppBar(
+        title: const Text('채팅'),
+        actions: [
+          PopupMenuButton<ChatSortMode>(
+            initialValue: _sortMode,
+            tooltip: '정렬',
+            onSelected: (mode) => setState(() => _sortMode = mode),
+            color: const Color(0xFFF3F4F6),
+            elevation: 8,
+            offset: const Offset(0, 46),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            constraints: const BoxConstraints(minWidth: 220, maxWidth: 220),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: ChatSortMode.byMatch,
+                padding: EdgeInsets.zero,
+                child: _sortMenuRow(
+                  _sortLabel(ChatSortMode.byMatch),
+                  selected: _sortMode == ChatSortMode.byMatch,
+                  topRounded: true,
+                ),
+              ),
+              PopupMenuItem(
+                value: ChatSortMode.byDate,
+                padding: EdgeInsets.zero,
+                child: _sortMenuRow(
+                  _sortLabel(ChatSortMode.byDate),
+                  selected: _sortMode == ChatSortMode.byDate,
+                ),
+              ),
+              PopupMenuItem(
+                value: ChatSortMode.byName,
+                padding: EdgeInsets.zero,
+                child: _sortMenuRow(
+                  _sortLabel(ChatSortMode.byName),
+                  selected: _sortMode == ChatSortMode.byName,
+                ),
+              ),
+            ],
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _sortLabel(_sortMode),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.expand_more_rounded,
+                    size: 18,
+                    color: Color(0xFF4B5563),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Obx(() {
         if (ctrl.chatThreads.isEmpty) {
           return _emptyState();
         }
-        return ListView.separated(
+        final sorted = _sortedThreads(
+          List<Map<String, dynamic>>.from(ctrl.chatThreads),
+        );
+        final entries = _buildListEntries(sorted);
+        return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: ctrl.chatThreads.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (_, i) => _threadCard(ctrl.chatThreads[i]),
+          itemCount: entries.length,
+          itemBuilder: (_, i) {
+            final e = entries[i];
+            final type = e['__type']?.toString() ?? 'thread';
+            if (type == 'divider') {
+              return Padding(
+                padding: EdgeInsets.only(top: i == 0 ? 0 : 12, bottom: 8),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider(height: 1)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        e['label']?.toString() ?? '매칭 · 날짜',
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider(height: 1)),
+                  ],
+                ),
+              );
+            }
+            final thread = Map<String, dynamic>.from(
+              e['data'] as Map<String, dynamic>,
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _threadCard(thread),
+            );
+          },
         );
       }),
     );
@@ -38,7 +304,11 @@ class ChatThreadsScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade300),
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 48,
+            color: Colors.grey.shade300,
+          ),
           const SizedBox(height: 12),
           const Text(
             '생성된 채팅방이 없습니다.',
@@ -58,7 +328,7 @@ class ChatThreadsScreen extends StatelessWidget {
   }
 
   Widget _threadCard(Map<String, dynamic> t) {
-    final other = t['other_user']?.toString() ?? '상대 없음';
+    final other = t['other_user']?.toString() ?? '상대방 없음';
     final status = t['status']?.toString() ?? 'open';
     final isClosed = status != 'open';
     final closedReason = t['closed_reason']?.toString() ?? '';
@@ -90,16 +360,20 @@ class ChatThreadsScreen extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isClosed ? Colors.grey.shade200 : const Color(0xFFDBEAFE),
+                color: isClosed
+                    ? Colors.grey.shade200
+                    : const Color(0xFFDBEAFE),
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
               child: Text(
-                other.substring(0, 1),
+                other.isNotEmpty ? other.substring(0, 1) : '?',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: isClosed ? Colors.grey.shade500 : const Color(0xFF1E40AF),
+                  color: isClosed
+                      ? Colors.grey.shade500
+                      : const Color(0xFF1E40AF),
                 ),
               ),
             ),
@@ -113,14 +387,21 @@ class ChatThreadsScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: isClosed ? Colors.grey.shade400 : const Color(0xFF1F2937),
+                      color: isClosed
+                          ? Colors.grey.shade400
+                          : const Color(0xFF1F2937),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: isClosed ? const Color(0xFFF3F4F6) : const Color(0xFFDCFCE7),
+                      color: isClosed
+                          ? const Color(0xFFF3F4F6)
+                          : const Color(0xFFDCFCE7),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -128,7 +409,9 @@ class ChatThreadsScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: isClosed ? Colors.grey.shade500 : const Color(0xFF16A34A),
+                        color: isClosed
+                            ? Colors.grey.shade500
+                            : const Color(0xFF16A34A),
                       ),
                     ),
                   ),
@@ -152,7 +435,7 @@ class ChatThreadsScreen extends StatelessWidget {
     if (reason == 'cancelled') return '취소됨';
     if (reason == 'rematch') return '리매치 종료';
     if (reason == 'rejected') return '매칭 거절로 종료';
-    if (reason == 'left') return '대화 중단';
+    if (reason == 'left') return '상대 중단';
     return '종료됨';
   }
 }
@@ -174,7 +457,8 @@ class ChatRoomScreen extends StatefulWidget {
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
   static const String _weeklyKey = 'quick_functions_weekly_selected';
   static const String _monthlyMemoKey = 'quick_functions_monthly_memo';
-  static const String _quickSharePrefix = '\u2063\u2063\u2063\u2063::ROOMANTIC::';
+  static const String _quickSharePrefix =
+      '\u2063\u2063\u2063\u2063::ROOMANTIC::';
 
   final ctrl = Get.find<MatchController>();
   final _api = ApiService();
@@ -192,6 +476,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool _otherSurveyOpened = false;
   String _myDecision = '';
   String _otherDecision = '';
+  String _myReason = '';
+  String _otherReason = '';
   String _sessionStatus = '';
 
   @override
@@ -226,14 +512,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _loadOlder() async {
     if (_isLoadingOlder) return;
 
-    final oldMax = scrollCtrl.hasClients ? scrollCtrl.position.maxScrollExtent : 0.0;
+    final oldMax = scrollCtrl.hasClients
+        ? scrollCtrl.position.maxScrollExtent
+        : 0.0;
     final oldOffset = scrollCtrl.hasClients ? scrollCtrl.position.pixels : 0.0;
 
     setState(() {
       _isLoadingOlder = true;
     });
 
-    final loaded = await ctrl.fetchOlderThreadMessages(widget.threadId, limit: 30);
+    final loaded = await ctrl.fetchOlderThreadMessages(
+      widget.threadId,
+      limit: 30,
+    );
     if (!mounted) return;
 
     setState(() {
@@ -304,6 +595,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         _otherSurveyOpened = res['other_survey_opened'] == true;
         _myDecision = (res['my_decision']?.toString() ?? '').trim();
         _otherDecision = (res['other_decision']?.toString() ?? '').trim();
+        _myReason = (res['my_reason']?.toString() ?? '').trim();
+        _otherReason = (res['other_reason']?.toString() ?? '').trim();
         _sessionStatus = (res['session_status']?.toString() ?? '').trim();
       });
     } catch (_) {
@@ -322,7 +615,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (text.isEmpty) return;
 
     final quickType = _commandToQuickShareType(text);
-    final content = quickType == null ? text : await _buildQuickShareMessage(quickType);
+    final content = quickType == null
+        ? text
+        : await _buildQuickShareMessage(quickType);
     if (content.isEmpty) return;
 
     final ok = await ctrl.sendThreadMessage(widget.threadId, content);
@@ -353,6 +648,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (normalized == '나의달력' || normalized == '내달력') {
       return _QuickShareType.calendar;
     }
+    if (normalized == '나의설문지' || normalized == '내설문지') {
+      return _QuickShareType.survey;
+    }
     return null;
   }
 
@@ -362,7 +660,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     return _encodeQuickSharePayload(payload);
   }
 
-  Future<Map<String, dynamic>?> _buildQuickSharePayload(_QuickShareType type) async {
+  Future<Map<String, dynamic>?> _buildQuickSharePayload(
+    _QuickShareType type,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final createdAt = DateTime.now().toIso8601String();
 
@@ -393,10 +693,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         };
       }
 
-      final dayLabels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final dayLabels = <String>[
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun',
+      ];
       final lines = <String>[];
       for (var day = 0; day < 7; day++) {
-        final hours = selected.where((slot) => slot ~/ 24 == day).map((slot) => slot % 24).toList()..sort();
+        final hours =
+            selected
+                .where((slot) => slot ~/ 24 == day)
+                .map((slot) => slot % 24)
+                .toList()
+              ..sort();
         if (hours.isEmpty) continue;
         lines.add('${dayLabels[day]} ${_formatHourRanges(hours).join(', ')}');
       }
@@ -420,6 +733,56 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         'details': lines,
         'created_at': createdAt,
       };
+    }
+
+    if (type == _QuickShareType.survey) {
+      try {
+        final res = await _api.getProfile();
+        final profile = (res['profile'] is Map)
+            ? Map<String, dynamic>.from(res['profile'] as Map)
+            : <String, dynamic>{};
+
+        final name = (profile['name']?.toString() ?? '').trim();
+        final persona = (profile['persona']?.toString() ?? '').trim();
+        final hall = (profile['accepted_hall']?.toString() ?? '').trim();
+        final fallbackHall = (profile['dormitory_hall']?.toString() ?? '')
+            .trim();
+        final roomCapacity = (profile['room_capacity'] as num?)?.toInt();
+        final college = (profile['college']?.toString() ?? '').trim();
+        final department = (profile['department']?.toString() ?? '').trim();
+
+        final lines = <String>[
+          if (name.isNotEmpty) '$name 사용자의 설문 요약',
+          if (persona.isNotEmpty) '페르소나: $persona',
+          if (college.isNotEmpty || department.isNotEmpty)
+            '전공: ${[college, department].where((e) => e.isNotEmpty).join(' / ')}',
+          if ((hall.isNotEmpty || fallbackHall.isNotEmpty) ||
+              roomCapacity != null)
+            '배정 정보: ${[hall.isNotEmpty ? hall : fallbackHall, roomCapacity == null ? '' : '$roomCapacity인실'].where((e) => e.isNotEmpty).join(' / ')}',
+        ];
+
+        return <String, dynamic>{
+          'v': 1,
+          'type': 'survey',
+          'title': '나의 설문지',
+          'summary': lines.isEmpty
+              ? <String>['설문지를 공개했습니다.']
+              : lines.take(3).toList(),
+          'details': lines.isEmpty
+              ? <String>['상대방이 아래 페이지에서 설문 전체를 확인할 수 있어요.']
+              : lines,
+          'created_at': createdAt,
+        };
+      } catch (_) {
+        return <String, dynamic>{
+          'v': 1,
+          'type': 'survey',
+          'title': '나의 설문지',
+          'summary': <String>['설문지를 공개했습니다.'],
+          'details': <String>['상대방이 아래 페이지에서 설문 전체를 확인할 수 있어요.'],
+          'created_at': createdAt,
+        };
+      }
     }
 
     final raw = prefs.getString(_monthlyMemoKey);
@@ -454,8 +817,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final dates = memos.keys.toList()..sort();
     final today = DateUtils.dateOnly(DateTime.now());
     final upcoming = dates.where((d) => !d.isBefore(today)).take(5).toList();
-    final picked = upcoming.isNotEmpty ? upcoming : dates.reversed.take(5).toList().reversed.toList();
-    final lines = picked.map((date) => '${_formatDate(date)} ${memos[date] ?? ''}').toList();
+    final picked = upcoming.isNotEmpty
+        ? upcoming
+        : dates.reversed.take(5).toList().reversed.toList();
+    final lines = picked
+        .map((date) => '${_formatDate(date)} ${memos[date] ?? ''}')
+        .toList();
 
     return <String, dynamic>{
       'v': 1,
@@ -505,11 +872,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _confirmLeave() async {
+    final reason = await _promptReason(
+      title: '나가기 사유 입력',
+      hint: '채팅방을 나가면 거절 처리되며 다시 매칭할 수 없습니다.\n최소 5자 이상 작성해 주세요',
+      confirmLabel: '거절 후 나가기',
+    );
+    if (reason == null) return;
+    if (!mounted) return;
+
     final shouldLeave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('채팅방 나가기'),
-        content: const Text('채팅방을 나가면 이 기기에서 대화 기록이 삭제됩니다.'),
+        content: const Text(
+          '채팅방을 나가면 즉시 거절로 처리되며 상대에게 전달됩니다.\n'
+          '이 상대와는 다시 매칭할 수 없습니다. 계속할까요?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -517,15 +895,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('나가기'),
+            child: const Text('거절 후 나가기'),
           ),
         ],
       ),
     );
     if (shouldLeave != true) return;
 
-    final ok = await ctrl.leaveThread(widget.threadId);
+    final ok = await ctrl.leaveThread(widget.threadId, reason);
     if (!ok || !mounted) return;
+    await ctrl.fetchActiveSessions();
+    await ctrl.fetchPool();
+    if (!mounted) return;
+    Get.snackbar('완료', '매칭이 거절되었습니다.');
     Navigator.of(context).maybePop();
   }
 
@@ -535,7 +917,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       final type = m['type']?.toString() ?? '';
       return sender != 'system' && type != 'system';
     }).length;
-    return localCount > _serverExchangeCount ? localCount : _serverExchangeCount;
+    return localCount > _serverExchangeCount
+        ? localCount
+        : _serverExchangeCount;
   }
 
   Future<void> _openMySurvey() async {
@@ -548,10 +932,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       return;
     }
     try {
+      final alreadyOpened = _mySurveyOpened;
       await _api.openThreadSurvey(widget.threadId);
+      if (!alreadyOpened) {
+        await _sendQuickShare(_QuickShareType.survey);
+      }
       await _loadThreadMeta();
       if (!mounted) return;
-      Get.snackbar('완료', '내 설문지를 공개했습니다.');
+      Get.snackbar('완료', '설문지를 공개했습니다.');
     } catch (e) {
       if (!mounted) return;
       Get.snackbar('오류', '설문지 공개에 실패했습니다: $e');
@@ -599,42 +987,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
 
     String? reason;
-    if (action == 'reject') {
-      final reasonCtrl = TextEditingController();
-      final rejectedReason = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('거절 사유 입력'),
-          content: TextField(
-            controller: reasonCtrl,
-            autofocus: true,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: '최소 5자 이상 작성해 주세요',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('취소'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = reasonCtrl.text.trim();
-                if (value.length < 5) {
-                  Get.snackbar('안내', '거절 사유는 5자 이상 필요합니다.');
-                  return;
-                }
-                Navigator.of(ctx).pop(value);
-              },
-              child: const Text('거절'),
-            ),
-          ],
-        ),
+    if (action == 'reject' || action == 'accept') {
+      final isReject = action == 'reject';
+      final inputReason = await _promptReason(
+        title: isReject ? '거절 사유 입력' : '수락 사유 입력',
+        hint: '최소 5자 이상 작성해 주세요',
+        confirmLabel: isReject ? '거절' : '수락',
       );
-      reasonCtrl.dispose();
-      if (rejectedReason == null || rejectedReason.length < 5) return;
-      reason = rejectedReason;
+      if (inputReason == null || inputReason.length < 5) return;
+      reason = inputReason;
     }
 
     setState(() => _isSubmittingDecision = true);
@@ -646,21 +1007,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       );
       await ctrl.fetchThreads();
       await ctrl.fetchActiveSessions();
+      await ctrl.fetchPool();
       await _loadThreadMeta();
       if (!mounted) return;
 
       final status = (res['status']?.toString() ?? '').trim();
       if (action == 'reject') {
-        Get.snackbar('완료', '매칭을 거절했습니다.');
+        Get.snackbar('완료', '매칭이 거절되었습니다.');
         Navigator.of(context).maybePop();
         return;
       }
       if (status == 'confirmed') {
         Get.snackbar('완료', '매칭이 확정되었습니다.');
       } else if (status == 'on_hold') {
-        Get.snackbar('완료', '매칭을 보류했습니다.');
+        Get.snackbar('완료', '매칭이 보류되었습니다.');
       } else {
-        Get.snackbar('완료', '내 의사를 전달했습니다.');
+        Get.snackbar('완료', '처리를 완료했습니다.');
       }
     } catch (e) {
       if (!mounted) return;
@@ -675,12 +1037,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _openActionSheet() async {
+    await _loadThreadMeta();
+    if (!mounted) return;
     final msgs = List<Map<String, dynamic>>.from(
       ctrl.threadMessages[widget.threadId] ?? const [],
     );
     final messageCount = _effectiveMessageCount(msgs);
     final remainToMatch = (7 - messageCount) > 0 ? 7 - messageCount : 0;
-    final surveyEnabled = _mySurveyOpened || _surveyEnabled || messageCount >= 4;
+    final surveyEnabled =
+        _mySurveyOpened || _surveyEnabled || messageCount >= 4;
     final matchingEnabled = _matchingEnabled || messageCount >= 7;
     final isClosed = ctrl.isThreadClosed(widget.threadId);
     final canSubmitDecision =
@@ -697,15 +1062,35 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         return SafeArea(
           child: Container(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFD1D5DB)),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A0F172A),
+                  blurRadius: 28,
+                  offset: Offset(0, 12),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -755,38 +1140,105 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     child: Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                      child: const Text(
-                        '상대가 설문지를 공개했어요 >',
-                        style: TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.w700,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0ECFF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFBFDBFE),
+                          width: 1.2,
                         ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.fact_check_outlined,
+                            size: 18,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '상대가 설문지를 공개했어요',
+                              style: TextStyle(
+                                color: Color(0xFF1E3A8A),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE5E7EB),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFD1D5DB)),
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFD5DDE8)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x120F172A),
+                        blurRadius: 16,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '매칭옵션 ${matchingEnabled ? '' : '(채팅 $remainToMatch회 더 필요)'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF111827),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '매칭 옵션',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          if (!matchingEnabled)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF7ED),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: const Color(0xFFFED7AA),
+                                ),
+                              ),
+                              child: Text(
+                                '채팅 $remainToMatch회 더 필요',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF9A3412),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        '옵션을 선택하면 상대와 즉시 공유됩니다.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -828,16 +1280,38 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           ),
                         ],
                       ),
-                      if (_myDecision.isNotEmpty || _otherDecision.isNotEmpty) ...[
+                      if (_myDecision.isNotEmpty ||
+                          _otherDecision.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Text(
-                          '내 의사: ${_myDecision.isEmpty ? '없음' : _myDecision} / 상대 의사: ${_otherDecision.isEmpty ? '없음' : _otherDecision}',
+                          "내 결정: ${_myDecision.isEmpty ? '없음' : _myDecision} / 상대 결정: ${_otherDecision.isEmpty ? '없음' : _otherDecision}",
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        if (_myReason.isNotEmpty ||
+                            _otherReason.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            "내 사유: ${_myReason.isEmpty ? '없음' : _myReason}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "상대 사유: ${_otherReason.isEmpty ? '없음' : _otherReason}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -850,33 +1324,70 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     );
   }
 
+  Future<String?> _promptReason({
+    required String title,
+    required String hint,
+    required String confirmLabel,
+  }) async {
+    final reasonCtrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: reasonCtrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = reasonCtrl.text.trim();
+              if (value.length < 5) {
+                Get.snackbar('안내', '사유는 5자 이상 필요합니다.');
+                return;
+              }
+              Navigator.of(ctx).pop(value);
+            },
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    reasonCtrl.dispose();
+    return result;
+  }
+
   Widget _sheetOutlinedButton({
     required String label,
     required VoidCallback? onTap,
   }) {
+    final enabled = onTap != null;
     return SizedBox(
-      height: 54,
+      height: 52,
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           side: BorderSide(
-            color: onTap == null ? const Color(0xFFD1D5DB) : const Color(0xFF6B7280),
-            width: 1.6,
+            color: enabled ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0),
+            width: 1.3,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(18),
           ),
-          foregroundColor: onTap == null ? const Color(0xFF9CA3AF) : const Color(0xFF2563EB),
-          backgroundColor: Colors.white.withValues(alpha: 0.62),
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
+          foregroundColor: enabled
+              ? const Color(0xFF2563EB)
+              : const Color(0xFF94A3B8),
+          backgroundColor: enabled ? Colors.white : const Color(0xFFF8FAFC),
+          overlayColor: const Color(0x1A2563EB),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
-        child: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-        ),
+        child: Text(label, overflow: TextOverflow.ellipsis),
       ),
     );
   }
@@ -887,21 +1398,21 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     required VoidCallback onTap,
   }) {
     return SizedBox(
-      height: 54,
+      height: 52,
       child: ElevatedButton(
         onPressed: enabled ? onTap : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2563EB),
           foregroundColor: Colors.white,
           disabledBackgroundColor: const Color(0xFFBFDBFE),
-          disabledForegroundColor: Colors.white70,
+          disabledForegroundColor: const Color(0xFFEFF6FF),
+          elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(18),
           ),
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          overlayColor: const Color(0x1AFFFFFF),
         ),
         child: Text(label),
       ),
@@ -933,7 +1444,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             if (isClosed)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 color: const Color(0xFFF3F4F6),
                 child: Text(
                   isStopped ? '상대가 대화를 중단했습니다.' : _closedLabel(closedReason),
@@ -1013,7 +1527,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                           hintText: isClosed ? '종료된 채팅입니다' : '메시지 입력...',
                           filled: true,
                           fillColor: const Color(0xFFF3F4F6),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),
                             borderSide: BorderSide.none,
@@ -1041,19 +1558,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _messageBubble(List<Map<String, dynamic>> all, int index) {
     final m = all[index];
     final sender = m['sender']?.toString() ?? '';
-    final isSystem = (m['type']?.toString() ?? '') == 'system' || sender == 'system';
+    final isSystem =
+        (m['type']?.toString() ?? '') == 'system' || sender == 'system';
     final content = m['content']?.toString() ?? '';
     final localStatus = m['local_status']?.toString() ?? '';
     final localUid = m['uid']?.toString() ?? '';
     final isSending = localStatus == 'sending';
     final isFailed = localStatus == 'failed';
-    final isMe = !isSystem &&
+    final isMe =
+        !isSystem &&
         (sender == ctrl.currentUserUid ||
             ((isSending || isFailed) && localUid.startsWith('local-pending-')));
 
     final label = _timeLabel(m['created_at']?.toString());
-    final nextLabel = (index + 1 < all.length) ? _timeLabel(all[index + 1]['created_at']?.toString()) : null;
-    final showLeftTime = !isSystem && !isSending && !isFailed && label != null && label != nextLabel;
+    final nextLabel = (index + 1 < all.length)
+        ? _timeLabel(all[index + 1]['created_at']?.toString())
+        : null;
+    final showLeftTime =
+        !isSystem &&
+        !isSending &&
+        !isFailed &&
+        label != null &&
+        label != nextLabel;
 
     if (isSystem) {
       return Center(
@@ -1083,34 +1609,35 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (showLeftTime)
-                Padding(
-                  padding: const EdgeInsets.only(right: 4, bottom: 2),
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                  ),
-                ),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 280),
                 child: quickShare == null
                     ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
-                          color: isMe ? const Color(0xFF2563EB) : const Color(0xFFF3F4F6),
+                          color: isMe
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           content,
                           style: TextStyle(
                             fontSize: 14,
-                            color: isMe ? Colors.white : const Color(0xFF1F2937),
+                            color: isMe
+                                ? Colors.white
+                                : const Color(0xFF1F2937),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1119,7 +1646,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ],
           ),
-          _buildStatusLine(isSending: isSending, isFailed: isFailed, localUid: localUid),
+          if (showLeftTime)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              ),
+            ),
+          _buildStatusLine(
+            isSending: isSending,
+            isFailed: isFailed,
+            localUid: localUid,
+          ),
         ],
       ),
     );
@@ -1177,14 +1716,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           : <String>[];
 
       if (type.isEmpty || title.isEmpty) return null;
-      return _QuickShareCardData(type: type, title: title, summary: summary, details: details);
+      return _QuickShareCardData(
+        type: type,
+        title: title,
+        summary: summary,
+        details: details,
+      );
     } catch (_) {
       return null;
     }
   }
 
-  Widget _quickShareCard({required _QuickShareCardData data, required bool isMe}) {
+  Widget _quickShareCard({
+    required _QuickShareCardData data,
+    required bool isMe,
+  }) {
     final isSchedule = data.type == 'schedule';
+    final isSurvey = data.type == 'survey';
     return GestureDetector(
       onTap: () => _openQuickShareDetail(data),
       child: Container(
@@ -1203,7 +1751,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isSchedule ? Icons.schedule : Icons.calendar_month,
+                  isSchedule
+                      ? Icons.schedule
+                      : (isSurvey ? Icons.fact_check : Icons.calendar_month),
                   size: 16,
                   color: isMe ? Colors.white : const Color(0xFF3730A3),
                 ),
@@ -1219,20 +1769,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ...data.summary.take(3).map(
-              (line) => Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  line,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isMe ? Colors.white : const Color(0xFF1E1B4B),
+            ...data.summary
+                .take(3)
+                .map(
+                  (line) => Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(
+                      line,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isMe ? Colors.white : const Color(0xFF1E1B4B),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
             const SizedBox(height: 2),
             Text(
               '눌러서 상세보기',
@@ -1263,7 +1815,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             children: [
               Text(
                 data.title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 12),
               if (data.details.isEmpty)
@@ -1305,7 +1860,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   String _closedLabel(String reason) {
-    if (reason == 'already_matched') return '상대가 이미 매칭했습니다.';
+    if (reason == 'already_matched') return '상대가 이미 매칭됐습니다.';
     if (reason == 'no_response') return '2일 무응답으로 종료되었습니다.';
     if (reason == 'cancelled') return '취소로 종료되었습니다.';
     if (reason == 'rematch') return '리매치로 종료되었습니다.';
@@ -1315,7 +1870,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 }
 
-enum _QuickShareType { schedule, calendar }
+enum _QuickShareType { schedule, calendar, survey }
 
 class _QuickShareCardData {
   final String type;
@@ -1330,3 +1885,5 @@ class _QuickShareCardData {
     required this.details,
   });
 }
+
+// TEMP_MARKER

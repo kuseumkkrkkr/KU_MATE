@@ -6,6 +6,7 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/matching_split_screen.dart';
+import 'screens/life_room_screen.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/match_controller.dart';
 
@@ -164,6 +165,7 @@ class MyApp extends StatelessWidget {
           name: '/matching-split',
           page: () => const MatchingSplitScreen(),
         ),
+        GetPage(name: '/life-room', page: () => const LifeRoomScreen()),
       ],
     );
   }

@@ -52,6 +52,14 @@ class Profile {
   List<String> hopeHalls; // max 2 in preliminary
   String acceptedHall; // 1 in main phase
   int roomCapacity; // 2, 3, or 4
+  List<int> preferredRoomTypeIds;
+  int fixedRoomTypeId;
+  List<int> interestRoomTypeIds;
+  int fixedInterestRoomTypeId;
+  int preChangeCount;
+  int applyChangeCount;
+  String preLastChangedAt;
+  String applyLastChangedAt;
   List<String> nonNegotiableItems;
   List<int> nonNegotiableWeights;
 
@@ -107,6 +115,14 @@ class Profile {
     this.hopeHalls = const [],
     this.acceptedHall = '',
     this.roomCapacity = 2,
+    this.preferredRoomTypeIds = const [],
+    this.fixedRoomTypeId = 0,
+    this.interestRoomTypeIds = const [],
+    this.fixedInterestRoomTypeId = 0,
+    this.preChangeCount = 0,
+    this.applyChangeCount = 0,
+    this.preLastChangedAt = '',
+    this.applyLastChangedAt = '',
     this.nonNegotiableItems = const [],
     this.nonNegotiableWeights = const [],
   });
@@ -164,6 +180,14 @@ class Profile {
       hopeHalls: (json['hope_halls'] as List<dynamic>?)?.cast<String>() ?? const [],
       acceptedHall: json['accepted_hall'] ?? '',
       roomCapacity: json['room_capacity'] ?? 2,
+      preferredRoomTypeIds: (json['preferred_room_type_ids'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [],
+      fixedRoomTypeId: json['fixed_room_type_id'] ?? 0,
+      interestRoomTypeIds: (json['interest_room_type_ids'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [],
+      fixedInterestRoomTypeId: json['fixed_interest_room_type_id'] ?? 0,
+      preChangeCount: json['pre_change_count'] ?? 0,
+      applyChangeCount: json['apply_change_count'] ?? 0,
+      preLastChangedAt: json['pre_last_changed_at'] ?? '',
+      applyLastChangedAt: json['apply_last_changed_at'] ?? '',
       nonNegotiableItems: (json['non_negotiable_items'] as List<dynamic>?)?.cast<String>() ?? const [],
       nonNegotiableWeights: (json['non_negotiable_weights'] as List<dynamic>?)?.cast<int>() ?? const [],
     );
@@ -198,6 +222,14 @@ class Profile {
       hopeHalls: List<String>.from(hopeHalls),
       acceptedHall: acceptedHall,
       roomCapacity: roomCapacity,
+      preferredRoomTypeIds: List<int>.from(preferredRoomTypeIds),
+      fixedRoomTypeId: fixedRoomTypeId,
+      interestRoomTypeIds: List<int>.from(interestRoomTypeIds),
+      fixedInterestRoomTypeId: fixedInterestRoomTypeId,
+      preChangeCount: preChangeCount,
+      applyChangeCount: applyChangeCount,
+      preLastChangedAt: preLastChangedAt,
+      applyLastChangedAt: applyLastChangedAt,
       nonNegotiableItems: nonNegotiableItems,
       nonNegotiableWeights: nonNegotiableWeights,
     );
@@ -250,6 +282,14 @@ class Profile {
         'hope_halls': hopeHalls,
         'accepted_hall': acceptedHall,
         'room_capacity': roomCapacity,
+        'preferred_room_type_ids': preferredRoomTypeIds,
+        'fixed_room_type_id': fixedRoomTypeId,
+        'interest_room_type_ids': interestRoomTypeIds,
+        'fixed_interest_room_type_id': fixedInterestRoomTypeId,
+        'pre_change_count': preChangeCount,
+        'apply_change_count': applyChangeCount,
+        'pre_last_changed_at': preLastChangedAt,
+        'apply_last_changed_at': applyLastChangedAt,
         'non_negotiable_items': nonNegotiableItems,
         'non_negotiable_weights': nonNegotiableWeights,
       };

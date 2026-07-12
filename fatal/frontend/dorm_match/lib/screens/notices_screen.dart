@@ -14,6 +14,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _notices = const [];
+  Set<int> _collapsedIds = {};
 
   @override
   void initState() {
@@ -29,7 +30,13 @@ class _NoticesScreenState extends State<NoticesScreen> {
     try {
       final notices = await _api.getNotices(limit: 100);
       if (!mounted) return;
-      setState(() => _notices = notices);
+      setState(() {
+        _notices = notices;
+        _collapsedIds = {
+          for (var n in notices)
+            if (n['is_collapsed'] == true) n['id'] as int
+        };
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -79,6 +86,9 @@ class _NoticesScreenState extends State<NoticesScreen> {
                           separatorBuilder: (_, __) => const SizedBox(height: 12),
                           itemBuilder: (ctx, i) {
                             final n = _notices[i];
+                            final id = n['id'] as int?;
+                            final isCollapsed = id != null && _collapsedIds.contains(id);
+                            final body = (n['body'] ?? '').toString();
                             return Container(
                               padding: const EdgeInsets.all(18),
                               decoration: BoxDecoration(
@@ -99,12 +109,35 @@ class _NoticesScreenState extends State<NoticesScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
-                                        child: Text(
-                                          (n['title'] ?? '').toString(),
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            if (id != null) {
+                                              setState(() {
+                                                if (isCollapsed) {
+                                                  _collapsedIds.remove(id);
+                                                } else {
+                                                  _collapsedIds.add(id);
+                                                }
+                                              });
+                                            }
+                                          },
+                                          child: Row(children: [
+                                            Icon(
+                                              isCollapsed ? Icons.expand_more : Icons.expand_less,
+                                              size: 20,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                (n['title'] ?? '').toString(),
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ]),
                                         ),
                                       ),
                                       Text(
@@ -116,15 +149,17 @@ class _NoticesScreenState extends State<NoticesScreen> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    (n['body'] ?? '').toString(),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade700,
-                                      height: 1.4,
+                                  if (!isCollapsed) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      body,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade700,
+                                        height: 1.4,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             );

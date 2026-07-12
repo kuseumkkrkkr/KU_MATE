@@ -1,11 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../services/api_service.dart';
+import 'match_screen.dart';
 import 'match_history_detail_screen.dart';
 
 class MatchHistoryScreen extends StatefulWidget {
-  const MatchHistoryScreen({super.key});
+  final int refreshToken;
+  const MatchHistoryScreen({super.key, this.refreshToken = 0});
 
   @override
   State<MatchHistoryScreen> createState() => _MatchHistoryScreenState();
@@ -22,13 +24,44 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
     _fetchHistory();
   }
 
+  @override
+  void didUpdateWidget(covariant MatchHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _fetchHistory();
+    }
+  }
+
   Future<void> _fetchHistory() async {
     setState(() => _isLoading = true);
     try {
       final rows = await _api.getSessionHistory();
+      final activeRows = await _api.getActiveSessions();
+      final items = List<Map<String, dynamic>>.from(rows);
+      final existingIds = items
+          .map((e) => e['session_id']?.toString() ?? e['uid']?.toString() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toSet();
+      for (final raw in List<Map<String, dynamic>>.from(activeRows)) {
+        final sessionId =
+            raw['uid']?.toString() ?? raw['session_id']?.toString() ?? '';
+        if (sessionId.isEmpty || existingIds.contains(sessionId)) continue;
+        items.insert(0, {
+          'session_id': sessionId,
+          'candidate_type': raw['candidate_type'] ?? 'individual',
+          'match_kind': 'dormitory',
+          'created_at': raw['created_at'],
+          'status': raw['status'] ?? 'active',
+          'ui_status': (raw['status']?.toString() ?? '') == 'confirmed'
+              ? 'match_success'
+              : 'in_progress',
+          'is_deletable': false,
+          'threads': const [],
+        });
+      }
       _items
         ..clear()
-        ..addAll(List<Map<String, dynamic>>.from(rows));
+        ..addAll(items);
     } catch (e) {
       Get.snackbar('오류', '매칭 이력을 불러오지 못했습니다: $e');
       _items.clear();
@@ -36,6 +69,41 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<bool> _deleteHistoryItem(Map<String, dynamic> item) async {
+    final sessionId = item['session_id']?.toString() ?? '';
+    if (sessionId.isEmpty) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('이력 삭제'),
+        content: const Text('기간종료된 매칭 이력을 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await _api.deleteSessionHistory(sessionId);
+      _items.removeWhere((e) => e['session_id']?.toString() == sessionId);
+      if (mounted) {
+        setState(() {});
+      }
+      Get.snackbar('완료', '매칭 이력을 삭제했습니다.');
+      return true;
+    } catch (e) {
+      Get.snackbar('오류', '매칭 이력 삭제에 실패했습니다: $e');
+      return false;
     }
   }
 
@@ -48,7 +116,7 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _separatedNotice(),
+            //_separatedNotice(),
             const SizedBox(height: 14),
             if (_isLoading)
               const Padding(
@@ -59,31 +127,42 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
               _emptyState()
             else
               ..._items.map((item) {
+                final isDeletable = item['is_deletable'] == true;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _historyCard(item),
+                  child: isDeletable
+                      ? Dismissible(
+                          key: ValueKey(item['session_id']?.toString() ?? ''),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.delete_outline, color: Colors.white),
+                                SizedBox(width: 6),
+                                Text(
+                                  '삭제',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          confirmDismiss: (_) => _deleteHistoryItem(item),
+                          child: _historyCard(item),
+                        )
+                      : _historyCard(item),
                 );
               }),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _separatedNotice() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFBFDBFE)),
-      ),
-      child: const Text(
-        '이 화면은 매칭 이력 전용 페이지입니다.\n"현재 매칭중인 기숙사 찾기 → 매칭나누기 → 매칭 시작" 흐름과는 별개입니다.',
-        style: TextStyle(
-          color: Color(0xFF1E3A8A),
-          fontWeight: FontWeight.w600,
-          height: 1.4,
         ),
       ),
     );
@@ -117,7 +196,14 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
     final statusBg = _statusBackground(status);
 
     return InkWell(
-      onTap: () => Get.to(() => MatchHistoryDetailScreen(session: item)),
+      onTap: () {
+        final uiStatus = item['ui_status']?.toString() ?? '';
+        if (uiStatus == 'in_progress' || uiStatus == 'on_hold') {
+          Get.to(() => const MatchScreen());
+          return;
+        }
+        Get.to(() => MatchHistoryDetailScreen(session: item));
+      },
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -142,8 +228,8 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(
-                Icons.history,
+              child: Icon(
+                _kindIcon(item['match_kind']?.toString()),
                 color: Color(0xFF1D4ED8),
                 size: 20,
               ),
@@ -205,6 +291,18 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
     }
   }
 
+  IconData _kindIcon(String? raw) {
+    switch (raw) {
+      case 'one_room':
+        return Icons.home_work_outlined;
+      case 'share_house':
+        return Icons.groups_2_outlined;
+      case 'dormitory':
+      default:
+        return Icons.apartment_outlined;
+    }
+  }
+
   String _statusLabel(String? raw) {
     if (raw == 'match_success') return '매칭 성공';
     if (raw == 'on_hold') return '보류중';
@@ -236,4 +334,3 @@ class _MatchHistoryScreenState extends State<MatchHistoryScreen> {
 
   String _two(int n) => n.toString().padLeft(2, '0');
 }
-

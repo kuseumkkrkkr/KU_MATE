@@ -1,0 +1,198 @@
+{
+  "main": {
+    "id": "edcf1003a6a666a2",
+    "type": "split",
+    "children": [
+      {
+        "id": "1a0baf4c0cd6539c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a5c0a753479c2812",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "그래프 뷰"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "95d281f345246bb8",
+    "type": "split",
+    "children": [
+      {
+        "id": "64ecb0cf6db4c4a8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5099eb6323171f3f",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "cbdd76ec4fab61c1",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "d51e5fe4879f791a",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a943f1d0d14477ee",
+    "type": "split",
+    "children": [
+      {
+        "id": "82dcb22a211bb378",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fbe4f1805b8612d9",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "배정 정책.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "배정 정책 의 백링크"
+            }
+          },
+          {
+            "id": "87467e10474f38b5",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "배정 정책.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "배정 정책 의 나가는 링크"
+            }
+          },
+          {
+            "id": "690f7e9881506b36",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "ce04bd38108af2a3",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "96525c8156d9db09",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "배정 정책.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "배정 정책 의 개요"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "a5c0a753479c2812",
+  "lastOpenFiles": [
+    "무제 8.canvas",
+    "무제 7.canvas",
+    "무제 6.canvas",
+    "무제 5.canvas",
+    "무제 4.canvas",
+    "무제 3.canvas",
+    "무제 2.canvas",
+    "무제 1.canvas",
+    "무제.canvas",
+    "배정 정책.md",
+    "무제.md",
+    "무제",
+    "환영합니다!.md"
+  ]
+}
